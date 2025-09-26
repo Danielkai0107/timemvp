@@ -170,7 +170,7 @@ class CustomTextInputState extends State<CustomTextInput> {
                   contentPadding: EdgeInsets.only(
                     left: widget.prefixIcon != null ? 48 : 16,
                     right: widget.suffixIcon != null ? 48 : 16,
-                    top: _shouldFloatLabel ? 24 : (widget.maxLines == 1 ? 20 : 16),
+                    top: _shouldFloatLabel ? 28 : (widget.maxLines == 1 ? 20 : 16),
                     bottom: widget.maxLines == 1 ? 8 : 16,
                   ),
                 ),
