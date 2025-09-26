@@ -236,7 +236,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      top: _shouldFloatLabel ? 24 : 20,
+                      top: _shouldFloatLabel ? 26 : 20,
                       bottom: 8,
                     ),
                     child: Align(
@@ -256,7 +256,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      top: _shouldFloatLabel ? 24 : 20,
+                      top: _shouldFloatLabel ? 26 : 20,
                       bottom: 8,
                     ),
                     child: DropdownButtonHideUnderline(

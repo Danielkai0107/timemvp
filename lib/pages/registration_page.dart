@@ -1238,7 +1238,7 @@ class RegistrationPageState extends State<RegistrationPage> {
                 showSkip: _selectedAccountType == 'personal' && _currentStep == 5,
                 previousText: '上一步',
                 nextText: _getNextButtonText(),
-                skipText: '稍後認證',
+                skipText: '略過',
                 isNextEnabled: _getNextButtonEnabled(),
                 isLoading: _isLoading,
               ),
@@ -1534,7 +1534,7 @@ class RegistrationPageState extends State<RegistrationPage> {
           children: [
             // 標題
             const Text(
-              '邀請你進行實名制認證',
+              '立即開通金流服務',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -1677,7 +1677,7 @@ class RegistrationPageState extends State<RegistrationPage> {
                         ),
                       )
                     : const Text(
-                        '前往認證',
+                        '啟用金流',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
