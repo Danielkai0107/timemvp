@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// 步驟指示器組件 - 底部顯示當前進度
 class StepIndicator extends StatelessWidget {
@@ -6,8 +7,8 @@ class StepIndicator extends StatelessWidget {
     super.key,
     required this.currentStep,
     required this.totalSteps,
-    this.activeColor = const Color(0xFFFFBE0A),
-    this.inactiveColor = const Color(0xFFE0E0E0),
+    this.activeColor = AppColors.primary900,
+    this.inactiveColor = AppColors.grey300,
     this.height = 4.0,
     this.spacing = 8.0,
   });
@@ -63,10 +64,13 @@ class StepNavigationButtons extends StatelessWidget {
     super.key,
     this.onPrevious,
     this.onNext,
+    this.onSkip,
     this.previousText = '上一步',
     this.nextText = '下一步',
+    this.skipText = '跳過',
     this.showPrevious = true,
     this.showNext = true,
+    this.showSkip = false,
     this.isNextEnabled = true,
     this.isLoading = false,
   });
@@ -77,17 +81,26 @@ class StepNavigationButtons extends StatelessWidget {
   /// 下一步回調
   final VoidCallback? onNext;
   
+  /// 跳過回調
+  final VoidCallback? onSkip;
+  
   /// 上一步按鈕文字
   final String previousText;
   
   /// 下一步按鈕文字
   final String nextText;
   
+  /// 跳過按鈕文字
+  final String skipText;
+  
   /// 是否顯示上一步按鈕
   final bool showPrevious;
   
   /// 是否顯示下一步按鈕
   final bool showNext;
+  
+  /// 是否顯示跳過按鈕
+  final bool showSkip;
   
   /// 下一步按鈕是否啟用
   final bool isNextEnabled;
@@ -107,7 +120,7 @@ class StepNavigationButtons extends StatelessWidget {
               child: Container(
                 height: 60,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
+                  border: Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: TextButton(
@@ -123,7 +136,7 @@ class StepNavigationButtons extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: Colors.black,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -131,21 +144,21 @@ class StepNavigationButtons extends StatelessWidget {
             ),
           
           // 間距
-          if (showPrevious && showNext)
-            const SizedBox(width: 16),
+          if (showPrevious && (showNext || showSkip))
+            const SizedBox(width: 12),
           
-          // 下一步按鈕
-          if (showNext)
+          // 下一步按鈕（當有跳過按鈕時隱藏）
+          if (showNext && !showSkip)
             Expanded(
-              child: Container(
+              child: SizedBox(
                 height: 60,
                 child: ElevatedButton(
                   onPressed: isNextEnabled && !isLoading ? onNext : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isNextEnabled 
-                      ? const Color(0xFFFFBE0A) 
-                      : Colors.grey[300],
-                    foregroundColor: isNextEnabled ? Colors.black : Colors.grey[600],
+                      ? AppColors.primary900 
+                      : AppColors.grey300,
+                    foregroundColor: isNextEnabled ? AppColors.black : AppColors.grey700,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -157,7 +170,7 @@ class StepNavigationButtons extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.black),
                         ),
                       )
                     : Text(
@@ -167,6 +180,32 @@ class StepNavigationButtons extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                ),
+              ),
+            ),
+          
+          // 跳過按鈕（黃色，替代 next 按鈕的位置）
+          if (showSkip)
+            Expanded(
+              child: SizedBox(
+                height: 60,
+                child: ElevatedButton(
+                  onPressed: onSkip,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary900,
+                    foregroundColor: AppColors.black,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    skipText,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),

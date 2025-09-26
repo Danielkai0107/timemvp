@@ -6,9 +6,12 @@ import '../components/design_system/custom_dropdown.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/step_indicator.dart';
 import '../components/design_system/photo_upload.dart';
+import '../components/design_system/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/firestore_test.dart';
+import 'kyc_page.dart';
+import 'home.dart';
 
 /// 註冊頁面
 class RegistrationPage extends StatefulWidget {
@@ -34,7 +37,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   // 動態計算總步驟數
   int get _totalSteps {
     if (_selectedAccountType == 'business') {
-      return 8; // 企業帳戶流程：帳戶類型 → 聯絡人 → 企業資料 → 4個文件 → 密碼 → 完成
+      return 9; // 企業帳戶流程：帳戶類型 → 聯絡人 → 企業資料 → 4個文件 → 密碼 → 完成頁面
     } else {
       return 5; // 個人帳戶流程：帳戶類型 → 基本資料 → 密碼 → 相片 → 實名制認證
     }
@@ -51,6 +54,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   String? _selectedGender;
   int? _selectedAge;
   List<String> _uploadedPhotos = [];
+  String? _emailError;
 
   // 企業帳戶資料
   final TextEditingController _contactNameController = TextEditingController();
@@ -70,6 +74,9 @@ class RegistrationPageState extends State<RegistrationPage> {
   List<String> _bankBookCover = [];
   List<String> _idCardFront = [];
   List<String> _idCardBack = [];
+  String? _contactEmailError;
+  String? _companyEmailError;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -110,6 +117,9 @@ class RegistrationPageState extends State<RegistrationPage> {
 
   void _nextStep() {
     if (_currentStep < _totalSteps) {
+      // 自動關閉鍵盤
+      FocusScope.of(context).unfocus();
+      
       setState(() {
         _currentStep++;
       });
@@ -122,6 +132,9 @@ class RegistrationPageState extends State<RegistrationPage> {
 
   void _previousStep() {
     if (_currentStep > 1) {
+      // 自動關閉鍵盤
+      FocusScope.of(context).unfocus();
+      
       setState(() {
         _currentStep--;
       });
@@ -143,6 +156,7 @@ class RegistrationPageState extends State<RegistrationPage> {
            _emailController.text.trim().isNotEmpty &&
            _emailController.text.contains('@');
   }
+
 
   bool _canProceedFromStep3() {
     return _passwordController.text.length >= 6 &&
@@ -167,6 +181,7 @@ class RegistrationPageState extends State<RegistrationPage> {
            _contactEmailController.text.trim().isNotEmpty &&
            _contactEmailController.text.contains('@');
   }
+
 
   bool _canProceedFromBusinessInfoStep() {
     return _companyNameController.text.trim().isNotEmpty &&
@@ -199,7 +214,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   // 動態獲取 PageView 的子頁面
   List<Widget> _getPageViewChildren() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：8步
+      // 企業帳戶流程：9步
       return [
         _buildStep1(), // 1. 帳戶類型選擇
         _buildBusinessContactStep(), // 2. 主要聯絡人資料
@@ -209,6 +224,7 @@ class RegistrationPageState extends State<RegistrationPage> {
         _buildIdCardFrontStep(), // 6. 身分證正面
         _buildIdCardBackStep(), // 7. 身分證背面
         _buildStep3(), // 8. 密碼設定
+        _buildBusinessCompletionStep(), // 9. 完成頁面
       ];
     } else {
       // 個人帳戶流程：5步
@@ -222,12 +238,234 @@ class RegistrationPageState extends State<RegistrationPage> {
     }
   }
 
-  Future<void> _completeRegistration() async {
-    await _saveUserData(isVerified: true);
+  /// 跳過認證，直接登入
+  Future<void> _skipVerificationAndLogin() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // 先創建 Firebase 帳戶
+      await _authService.createUserWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      
+      // 準備基本註冊資料（不含 KYC）
+      final registrationData = {
+        'accountType': _selectedAccountType,
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'gender': _selectedGender,
+        'age': _selectedAge,
+        'password': _passwordController.text,
+        'photos': _uploadedPhotos,
+        'isVerified': false, // 未認證
+      };
+
+      // 如果是企業帳戶，添加企業相關資料
+      if (_selectedAccountType == 'business') {
+        registrationData.addAll({
+          'contactName': _contactNameController.text,
+          'contactPhone': _contactPhoneController.text,
+          'contactEmail': _contactEmailController.text,
+          'companyName': _companyNameController.text,
+          'companyPhone': _companyPhoneController.text,
+          'companyAddress': _companyAddressController.text,
+          'companyTaxId': _taxIdController.text,
+          'businessRegistrationDocs': _businessRegistrationDocs,
+          'bankBookCover': _bankBookCover,
+          'idCardFrontDocs': _idCardFront,
+          'idCardBackDocs': _idCardBack,
+        });
+      }
+      
+      // 保存用戶資料
+      final user = _authService.currentUser;
+      if (user != null) {
+        await _userService.createUser(user.uid, registrationData);
+        debugPrint('註冊資料保存成功（未認證）');
+      }
+
+      if (mounted) {
+        // 顯示成功訊息
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('註冊成功！歡迎使用 TimeApp'),
+            backgroundColor: AppColors.success900,
+          ),
+        );
+        
+        // 導向首頁
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint('跳過認證註冊失敗: $e');
+      
+      if (mounted) {
+        if (e.toString().contains('email-already-in-use') || 
+            e.toString().contains('此電子郵件已被註冊')) {
+          
+          // 設置 email 錯誤訊息
+          setState(() {
+            _emailError = '此電子郵件已被註冊';
+          });
+          
+          // 返回到第2步（填寫個人資料，包含 email）
+          setState(() {
+            _currentStep = 2;
+          });
+          
+          _pageController.animateToPage(
+            1, // 第2步的 index (0-based)
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+          
+          // 顯示提示訊息
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('此電子郵件已被註冊，請修改電子郵件或前往登入'),
+              backgroundColor: AppColors.error900,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('註冊失敗: $e'),
+              backgroundColor: AppColors.error900,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
-  Future<void> _skipVerification() async {
-    await _saveUserData(isVerified: false);
+  Future<void> _goToVerification() async {
+    if (!mounted) return;
+    
+    // 顯示載入狀態
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // 先檢查 email 是否已被使用（透過嘗試創建帳戶）
+      debugPrint('檢查 email 是否已被使用: ${_emailController.text}');
+      
+      await _authService.createUserWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      
+      debugPrint('帳戶創建成功，可以進入 KYC 流程');
+      
+      // 準備註冊資料傳給 KYC 頁面
+      final registrationData = {
+        'accountType': _selectedAccountType,
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'gender': _selectedGender,
+        'age': _selectedAge,
+        'password': _passwordController.text,
+        'photos': _uploadedPhotos,
+        'isVerified': false, // KYC 完成後會更新為 true
+      };
+
+      // 如果是企業帳戶，添加企業相關資料
+      if (_selectedAccountType == 'business') {
+        registrationData.addAll({
+          'contactName': _contactNameController.text,
+          'contactPhone': _contactPhoneController.text,
+          'contactEmail': _contactEmailController.text,
+          'companyName': _companyNameController.text,
+          'companyPhone': _companyPhoneController.text,
+          'companyAddress': _companyAddressController.text,
+          'companyTaxId': _taxIdController.text,
+          'businessRegistrationDocs': _businessRegistrationDocs,
+          'bankBookCover': _bankBookCover,
+          'idCardFrontDocs': _idCardFront,
+          'idCardBackDocs': _idCardBack,
+        });
+      }
+      
+      if (mounted) {
+        // 導向 KYC 頁面
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => KycPage(
+              fromRegistration: true,
+              registrationData: registrationData,
+            ),
+          ),
+        );
+        
+        // 如果 KYC 完成，關閉註冊頁面
+        if (result == true && mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      debugPrint('進入 KYC 前的驗證失敗: $e');
+      
+      if (mounted) {
+        // 檢查是否是 email 已被使用的錯誤
+        if (e.toString().contains('email-already-in-use') || 
+            e.toString().contains('此電子郵件已被註冊')) {
+          
+          // 設置 email 錯誤訊息
+          setState(() {
+            _emailError = '此電子郵件已被註冊';
+          });
+          
+          // 返回到第2步（填寫個人資料，包含 email）
+          setState(() {
+            _currentStep = 2;
+          });
+          
+          _pageController.animateToPage(
+            1, // 第2步的 index (0-based)
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+          
+          // 顯示提示訊息
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('此電子郵件已被註冊，請修改電子郵件或前往登入'),
+              backgroundColor: AppColors.error900,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          // 其他錯誤
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('驗證失敗: $e'),
+              backgroundColor: AppColors.error900,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
 
@@ -256,21 +494,86 @@ class RegistrationPageState extends State<RegistrationPage> {
       String password = _passwordController.text;
       
       if (_selectedAccountType == 'business') {
-        // 企業帳戶使用聯絡人電子信箱
-        email = _contactEmailController.text.trim();
+        // 企業帳戶使用企業電子信箱
+        email = _companyEmailController.text.trim();
       } else {
         // 個人帳戶使用一般電子信箱
         email = _emailController.text.trim();
       }
       
       // 創建 Firebase 用戶帳戶
-      final user = await _authService.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      
-      if (user == null) {
-        throw Exception('帳戶創建失敗');
+      AuthUser? user;
+      try {
+        user = await _authService.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        
+        if (user == null) {
+          throw Exception('帳戶創建失敗');
+        }
+      } catch (e) {
+        // 檢查是否為電子郵件已被使用的錯誤
+        if (e.toString().contains('email-already-in-use') || 
+            e.toString().contains('此電子郵件已被註冊')) {
+          debugPrint('檢測到重複電子郵件錯誤: $e');
+          
+          // 關閉載入指示器
+          if (mounted) {
+            Navigator.of(context).pop();
+            
+            // 等待一小段時間確保對話框完全關閉
+            await Future.delayed(const Duration(milliseconds: 100));
+            
+            // 設置錯誤訊息
+            if (mounted) {
+              setState(() {
+                if (_selectedAccountType == 'business') {
+                  // 企業帳戶的錯誤顯示在企業電子信箱欄位
+                  _companyEmailError = '此電子郵件已被註冊';
+                } else {
+                  _emailError = '此電子郵件已被註冊';
+                }
+              });
+            }
+            
+            // 顯示錯誤對話框而不是嘗試導航
+            showDialog(
+              context: context,
+              barrierDismissible: false, // 禁止點擊遮罩關閉對話框
+              builder: (context) => AlertDialog(
+                title: const Text('電子郵件已被註冊'),
+                content: const Text('此電子郵件已被其他用戶註冊，請使用其他電子郵件地址。'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      // 導航回到對應的電子郵件輸入步驟
+                      if (mounted) {
+                        final targetStep = _selectedAccountType == 'business' ? 3 : 2; // 企業帳戶回到第3步（企業資料），個人帳戶回到第2步（基本資料）
+                        setState(() {
+                          _currentStep = targetStep;
+                        });
+                        _pageController.animateToPage(
+                          _currentStep - 1,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    child: const Text('確定'),
+                  ),
+                ],
+              ),
+            );
+            
+            debugPrint('已設置電子郵件錯誤訊息');
+          }
+          return;
+        } else {
+          // 其他錯誤，重新拋出
+          rethrow;
+        }
       }
       
       debugPrint('用戶創建成功: ${user.uid}');
@@ -415,61 +718,160 @@ class RegistrationPageState extends State<RegistrationPage> {
       // 等待一段時間確保所有操作完成
       await Future.delayed(const Duration(milliseconds: 300));
 
-      // 自動登出用戶，讓其自行登入
-      try {
-        await _authService.signOut();
-        debugPrint('用戶已登出');
-      } catch (e) {
-        debugPrint('登出時發生錯誤，但繼續流程: $e');
-        // 即使登出失敗也繼續，因為註冊已經完成
-      }
-
       // 關閉載入指示器
-      Navigator.of(context).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
 
-      // 顯示成功訊息
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('註冊完成'),
-          content: Text(_selectedAccountType == 'business'
-              ? '企業註冊成功！我們會在 3-7 天內審核您的申請。請使用您的電子郵件和密碼登入。'
-              : '註冊成功！請使用您的電子郵件和密碼登入。'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(); // 返回登入頁面
-              },
-              child: const Text('確定'),
+        if (_selectedAccountType == 'business') {
+          // 企業註冊：進入第9步完成頁面
+          setState(() {
+            _currentStep = 9;
+          });
+          
+          _pageController.animateToPage(
+            8, // 第9步的 index (0-based)
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+          
+          // 顯示成功訊息
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('企業註冊資料提交成功，等待審核'),
+              backgroundColor: AppColors.success900,
             ),
-          ],
-        ),
-      );
+          );
+        } else {
+          // 個人註冊：顯示對話框（保持原有邏輯）
+          showDialog(
+            context: context,
+            barrierDismissible: false, // 禁止點擊遮罩關閉對話框
+            builder: (context) => AlertDialog(
+              title: const Text('註冊完成'),
+              content: const Text('註冊成功！請使用您的電子郵件和密碼登入。'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(); // 返回登入頁面
+                  },
+                  child: const Text('確定'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
 
     } catch (e) {
       // 關閉載入指示器
-      Navigator.of(context).pop();
-      
-      debugPrint('註冊過程中發生錯誤: $e');
-      
-      // 顯示錯誤訊息
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('註冊失敗'),
-          content: Text('發生錯誤：$e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('確定'),
-            ),
-          ],
-        ),
-      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        
+        debugPrint('註冊過程中發生錯誤: $e');
+        
+        // 顯示錯誤訊息
+        showDialog(
+          context: context,
+          barrierDismissible: false, // 禁止點擊遮罩關閉對話框
+          builder: (context) => AlertDialog(
+            title: const Text('註冊失敗'),
+            content: Text('發生錯誤：$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('確定'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
+  // 企業註冊完成頁面
+  Widget _buildBusinessCompletionStep() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 標題
+          const Text(
+            '恭喜你完成申請！',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // 副標題
+          const Text(
+            '審核通過後，我們會通知你',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          
+          const SizedBox(height: 32),
+          
+          // 詳細說明文字
+          const Text(
+            '我們會在 3-7 天內發送 Email 通知，說明你是否通過驗證，這是需要請你提供更多資料。',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              height: 1.6,
+            ),
+          ),
+          
+          const Spacer(),
+          
+          // 前往登入按鈕
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              onPressed: _businessCompletionAndLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary900,
+                foregroundColor: AppColors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                '前往登入',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  /// 企業註冊完成並進入首頁
+  Future<void> _businessCompletionAndLogin() async {
+    if (!mounted) return;
+    
+    // 直接進入首頁（用戶已經登入狀態）
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const HomePage()),
+      (route) => false,
+    );
+  }
 
   // 企業文件上傳區域（使用與 photo_upload 相同的 UI）
   Widget _buildDocumentUploadSlot({
@@ -478,7 +880,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         height: 200,
         child: uploadedFiles.isEmpty
           ? CustomPaint(
@@ -532,7 +934,7 @@ class RegistrationPageState extends State<RegistrationPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -555,7 +957,7 @@ class RegistrationPageState extends State<RegistrationPage> {
                           width: 24,
                           height: 24,
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
@@ -608,7 +1010,7 @@ class RegistrationPageState extends State<RegistrationPage> {
               decoration: const BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: Color(0xFFF0F0F0),
+                    color: AppColors.grey100,
                     width: 1,
                   ),
                 ),
@@ -658,7 +1060,7 @@ class RegistrationPageState extends State<RegistrationPage> {
                     decoration: const BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
-                          color: Color(0xFFF8F8F8),
+                          color: AppColors.grey100,
                           width: 1,
                         ),
                       ),
@@ -760,6 +1162,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
+      barrierDismissible: false, // 禁止點擊遮罩關閉對話框
       builder: (context) => AlertDialog(
         title: const Text('錯誤'),
         content: Text(message),
@@ -816,20 +1219,28 @@ class RegistrationPageState extends State<RegistrationPage> {
                 ),
               ),
               
-              // 底部步驟指示器
-              StepIndicator(
-                currentStep: _currentStep,
-                totalSteps: _totalSteps,
-              ),
+              // 底部步驟指示器（企業第9步隱藏）
+              if (!(_selectedAccountType == 'business' && _currentStep == 9))
+                StepIndicator(
+                  currentStep: _currentStep,
+                  totalSteps: _totalSteps,
+                ),
               
-              // 導航按鈕
-              StepNavigationButtons(
+              // 導航按鈕（企業第9步隱藏）
+              if (!(_selectedAccountType == 'business' && _currentStep == 9))
+                StepNavigationButtons(
                 onPrevious: _currentStep > 1 ? _previousStep : null,
                 onNext: _getNextStepAction(),
+                onSkip: (_selectedAccountType == 'personal' && _currentStep == 5) 
+                    ? _skipVerificationAndLogin : null,
                 showPrevious: _currentStep > 1,
+                showNext: !(_selectedAccountType == 'personal' && _currentStep == 5),
+                showSkip: _selectedAccountType == 'personal' && _currentStep == 5,
                 previousText: '上一步',
                 nextText: _getNextButtonText(),
+                skipText: '稍後認證',
                 isNextEnabled: _getNextButtonEnabled(),
+                isLoading: _isLoading,
               ),
             ],
           ),
@@ -875,9 +1286,14 @@ class RegistrationPageState extends State<RegistrationPage> {
               dialogTitle: '選擇帳戶類型',
               value: _selectedAccountType,
               onChanged: (value) {
-                setState(() {
-                  _selectedAccountType = value;
-                });
+                // 自動關閉鍵盤
+                FocusScope.of(context).unfocus();
+                
+                if (mounted) {
+                  setState(() {
+                    _selectedAccountType = value;
+                  });
+                }
               },
               items: const [
                 DropdownItem(value: 'personal', label: '個人帳戶'),
@@ -916,11 +1332,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               label: '姓名',
               controller: _nameController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 性別下拉選單（對話框模式）
             DropdownBuilder.dialog<String>(
@@ -928,9 +1346,14 @@ class RegistrationPageState extends State<RegistrationPage> {
               dialogTitle: '選擇性別',
               value: _selectedGender,
               onChanged: (value) {
-                setState(() {
-                  _selectedGender = value;
-                });
+                // 自動關閉鍵盤
+                FocusScope.of(context).unfocus();
+                
+                if (mounted) {
+                  setState(() {
+                    _selectedGender = value;
+                  });
+                }
               },
               items: const [
                 DropdownItem(value: 'male', label: '男性'),
@@ -940,7 +1363,7 @@ class RegistrationPageState extends State<RegistrationPage> {
               ],
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 年齡下拉選單（對話框模式）
             DropdownBuilder.dialog<int>(
@@ -948,9 +1371,14 @@ class RegistrationPageState extends State<RegistrationPage> {
               dialogTitle: '選擇年齡',
               value: _selectedAge,
               onChanged: (value) {
-                setState(() {
-                  _selectedAge = value;
-                });
+                // 自動關閉鍵盤
+                FocusScope.of(context).unfocus();
+                
+                if (mounted) {
+                  setState(() {
+                    _selectedAge = value;
+                  });
+                }
               },
               items: List.generate(
                 48, // 18-65 歲
@@ -961,13 +1389,18 @@ class RegistrationPageState extends State<RegistrationPage> {
               ),
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 信箱輸入框
             TextInputBuilder.email(
               controller: _emailController,
+              errorText: _emailError,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {
+                    _emailError = null; // 清除錯誤訊息當用戶輸入時
+                  });
+                }
               },
             ),
             
@@ -1014,11 +1447,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               label: '密碼',
               controller: _passwordController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 確認密碼輸入框
             TextInputBuilder.password(
@@ -1029,7 +1464,9 @@ class RegistrationPageState extends State<RegistrationPage> {
                   ? '密碼不符合'
                   : null,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
@@ -1064,7 +1501,7 @@ class RegistrationPageState extends State<RegistrationPage> {
               '請上傳幾張您的相片，這將會顯示在您的個人檔案中。',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey,
+                color: Colors.black,
                 height: 1.5,
               ),
             ),
@@ -1091,51 +1528,167 @@ class RegistrationPageState extends State<RegistrationPage> {
   Widget _buildStep5() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 標題
-          const Text(
-            '邀請你進行實名制認證',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 標題
+            const Text(
+              '邀請你進行實名制認證',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // 說明文字
-          const Text(
-            '實名制認證可以提高您的帳戶安全性，並獲得更多功能權限。',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black,
-              height: 1.5,
+            
+            const SizedBox(height: 24),
+            
+            // 說明文字
+            const Text(
+              '完成身份認證，將提高 60% 媒合成功率。驗證後，即可使用平台金流服務。',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.black,
+                height: 1.5,
+              ),
             ),
-          ),
-          
-          const SizedBox(height: 40),
-          
-          // 完成註冊按鈕
-          ButtonBuilder.primary(
-            onPressed: _completeRegistration,
-            text: '完成註冊',
-            width: double.infinity,
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // 稍後再說按鈕
-          ButtonBuilder.secondary(
-            onPressed: _skipVerification,
-            text: '稍後再說',
-            width: double.infinity,
-          ),
-          
-          const Spacer(),
-        ],
+            
+            const SizedBox(height: 32),
+            
+            // 角色卡片
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+        
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.grey300.withOpacity(0.7),
+                    blurRadius: 12,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // 用戶頭像
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                 
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: _uploadedPhotos.isNotEmpty
+                          ? Image.file(
+                              File(_uploadedPhotos.first),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: AppColors.grey100,
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 30,
+                                    color: AppColors.grey500,
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              color: AppColors.grey100,
+                              child: Icon(
+                                Icons.person,
+                                size: 30,
+                                color: AppColors.grey500,
+                              ),
+                            ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // 用戶資訊
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _nameController.text.isNotEmpty ? _nameController.text : '用戶',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 16,
+                              color: AppColors.error900,
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              '尚未認證',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.error900,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            
+            // 前往認證按
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _goToVerification,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success900,
+                  foregroundColor: AppColors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                        ),
+                      )
+                    : const Text(
+                        '前往認證',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+            
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
@@ -1165,11 +1718,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               label: '主要聯絡人・姓名',
               controller: _contactNameController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 主要聯絡人手機
             CustomTextInput(
@@ -1177,18 +1732,25 @@ class RegistrationPageState extends State<RegistrationPage> {
               controller: _contactPhoneController,
               keyboardType: TextInputType.phone,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 主要聯絡人電子信箱
             TextInputBuilder.email(
               label: '主要聯絡人・電子信箱',
               controller: _contactEmailController,
+              errorText: _contactEmailError,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {
+                    _contactEmailError = null; // 清除錯誤訊息當用戶輸入時
+                  });
+                }
               },
             ),
             
@@ -1224,11 +1786,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               label: '企業名稱',
               controller: _companyNameController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 聯絡電話
             CustomTextInput(
@@ -1236,22 +1800,26 @@ class RegistrationPageState extends State<RegistrationPage> {
               controller: _companyPhoneController,
               keyboardType: TextInputType.phone,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 營業地址
             CustomTextInput(
               label: '營業地址',
               controller: _companyAddressController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 統一編號
             CustomTextInput(
@@ -1259,18 +1827,25 @@ class RegistrationPageState extends State<RegistrationPage> {
               controller: _taxIdController,
               keyboardType: TextInputType.number,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 企業電子信箱
             TextInputBuilder.email(
               label: '企業・電子信箱',
               controller: _companyEmailController,
+              errorText: _companyEmailError,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {
+                    _companyEmailError = null; // 清除錯誤訊息當用戶輸入時
+                  });
+                }
               },
             ),
             
@@ -1283,7 +1858,7 @@ class RegistrationPageState extends State<RegistrationPage> {
 
   VoidCallback? _getNextStepAction() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：8步
+      // 企業帳戶流程：9步
       switch (_currentStep) {
         case 1: return _canProceedFromStep1() ? _nextStep : null;
         case 2: return _canProceedFromBusinessContactStep() ? _nextStep : null;
@@ -1292,7 +1867,8 @@ class RegistrationPageState extends State<RegistrationPage> {
         case 5: return _canProceedFromBankBookStep() ? _nextStep : null;
         case 6: return _canProceedFromIdCardFrontStep() ? _nextStep : null;
         case 7: return _canProceedFromIdCardBackStep() ? _nextStep : null;
-        case 8: return _canProceedFromStep3() ? () => _saveUserData(isVerified: false) : null; // 密碼設定後完成企業註冊
+        case 8: return _canProceedFromStep3() ? () => _saveUserData(isVerified: false) : null; // 密碼設定後進入完成頁面
+        case 9: return null; // 第9步有自己的按鈕
         default: return null;
       }
     } else {
@@ -1302,23 +1878,28 @@ class RegistrationPageState extends State<RegistrationPage> {
         case 2: return _canProceedFromStep2() ? _nextStep : null;
         case 3: return _canProceedFromStep3() ? _nextStep : null;
         case 4: return _canProceedFromStep4() ? _nextStep : null;
-        case 5: return _completeRegistration; // 實名制認證選擇
+        case 5: return _goToVerification; // 進行認證（可選）
         default: return null;
       }
     }
   }
 
+
   String _getNextButtonText() {
     if (_selectedAccountType == 'business') {
-      return _currentStep == 8 ? '完成註冊' : '下一步';
+      return _currentStep == 8 ? '提交註冊' : '下一步';
     } else {
-      return _currentStep == 5 ? '完成註冊' : '下一步';
+      if (_currentStep == 5) {
+        return '確認前往'; // 第5步確認進入認證流程
+      } else {
+        return '下一步';
+      }
     }
   }
 
   bool _getNextButtonEnabled() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：8步
+      // 企業帳戶流程：9步
       switch (_currentStep) {
         case 1: return _canProceedFromStep1();
         case 2: return _canProceedFromBusinessContactStep();
@@ -1328,6 +1909,7 @@ class RegistrationPageState extends State<RegistrationPage> {
         case 6: return _canProceedFromIdCardFrontStep();
         case 7: return _canProceedFromIdCardBackStep();
         case 8: return _canProceedFromStep3(); // 密碼設定
+        case 9: return true; // 完成頁面
         default: return false;
       }
     } else {
@@ -1429,11 +2011,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               label: '戶名',
               controller: _accountHolderController,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 銀行代碼下拉選單
             DropdownBuilder.dialog<String>(
@@ -1441,9 +2025,14 @@ class RegistrationPageState extends State<RegistrationPage> {
               dialogTitle: '選擇銀行',
               value: _bankCodeController.text.isEmpty ? null : _bankCodeController.text,
               onChanged: (value) {
-                setState(() {
-                  _bankCodeController.text = value ?? '';
-                });
+                // 自動關閉鍵盤
+                FocusScope.of(context).unfocus();
+                
+                if (mounted) {
+                  setState(() {
+                    _bankCodeController.text = value ?? '';
+                  });
+                }
               },
               items: const [
                 DropdownItem(value: '013', label: '013 國泰世華'),
@@ -1453,7 +2042,7 @@ class RegistrationPageState extends State<RegistrationPage> {
               ],
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 銀行帳號
             CustomTextInput(
@@ -1461,11 +2050,13 @@ class RegistrationPageState extends State<RegistrationPage> {
               controller: _accountNumberController,
               keyboardType: TextInputType.number,
               onChanged: (value) {
-                setState(() {}); // 更新按鈕狀態
+                if (mounted) {
+                  setState(() {}); // 更新按鈕狀態
+                }
               },
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 4),
             
             // 文件上傳區域
             _buildDocumentUploadSlot(

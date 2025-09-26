@@ -1,9 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'pages/login_page.dart';
 import 'pages/home.dart';
 import 'services/auth_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // 初始化Firebase
+    debugPrint('開始初始化Firebase...');
+    await Firebase.initializeApp();
+    debugPrint('Firebase 初始化成功');
+    
+    // 初始化認證服務的當前用戶狀態
+    final AuthService authService = AuthService();
+    authService.initializeCurrentUser();
+  } catch (e) {
+    debugPrint('Firebase 初始化失敗: $e');
+    debugPrint('錯誤類型: ${e.runtimeType}');
+    if (e.toString().contains('google-services.json')) {
+      debugPrint('❌ 請檢查 google-services.json 文件是否正確放置在 android/app/ 目錄中');
+    }
+    // 即使Firebase初始化失敗，也繼續運行應用程式
+  }
+  
   runApp(const MyApp());
 }
 
@@ -39,7 +60,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// 模擬的認證狀態管理
+/// Firebase認證狀態管理
 class _AuthStateWidget extends StatefulWidget {
   @override
   _AuthStateWidgetState createState() => _AuthStateWidgetState();
@@ -47,15 +68,49 @@ class _AuthStateWidget extends StatefulWidget {
 
 class _AuthStateWidgetState extends State<_AuthStateWidget> {
   final AuthService _authService = AuthService();
+  bool _isInitialized = false;
+  bool _hasUser = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    try {
+      // 檢查Firebase Auth的當前用戶狀態
+      final user = _authService.currentUser;
+      if (mounted) {
+        setState(() {
+          _hasUser = user != null;
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('檢查認證狀態時發生錯誤: $e');
+      if (mounted) {
+        setState(() {
+          _hasUser = false;
+          _isInitialized = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 檢查當前用戶狀態
-    if (_authService.currentUser != null) {
-      return const HomePage();
-    } else {
-      return const LoginPage();
+    // 顯示載入畫面直到認證狀態確定
+    if (!_isInitialized) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
+
+    // 根據認證狀態導航
+    return _hasUser ? const HomePage() : const LoginPage();
   }
 }
 

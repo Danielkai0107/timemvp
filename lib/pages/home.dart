@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../components/design_system/app_colors.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import 'login_page.dart';
@@ -14,7 +15,7 @@ class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
   
-  MockUser? _currentUser;
+  AuthUser? _currentUser;
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
 
@@ -28,26 +29,46 @@ class _HomePageState extends State<HomePage> {
     try {
       _currentUser = _authService.currentUser;
       if (_currentUser != null) {
+        debugPrint('載入用戶資料: ${_currentUser!.uid}');
         final doc = await _userService.getUserDocument(_currentUser!.uid);
-        if (doc.exists) {
-          setState(() {
-            _userData = doc.data();
-            _isLoading = false;
-          });
+        if (doc.exists && doc.data() != null) {
+          if (mounted) {
+            setState(() {
+              _userData = doc.data() as Map<String, dynamic>;
+              _isLoading = false;
+            });
+          }
+          debugPrint('用戶資料載入成功');
         } else {
+          debugPrint('用戶文檔不存在或為空');
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }
+      } else {
+        // 用戶未登入，但不立即導航，讓AuthStateWidget處理
+        debugPrint('用戶未登入，應該由AuthStateWidget處理');
+        if (mounted) {
           setState(() {
             _isLoading = false;
           });
         }
-      } else {
-        // 用戶未登入，導向登入頁面
-        _navigateToLogin();
+        // 使用延遲導航避免立即導航衝突
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _navigateToLogin();
+          }
+        });
       }
     } catch (e) {
       debugPrint('載入用戶資料失敗: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -63,12 +84,14 @@ class _HomePageState extends State<HomePage> {
       await _authService.signOut();
       _navigateToLogin();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('登出失敗: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('登出失敗: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -113,10 +136,10 @@ class _HomePageState extends State<HomePage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFBE0A).withOpacity(0.1),
+                  color: AppColors.primary100,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFFFFBE0A).withOpacity(0.3),
+                    color: AppColors.primary300,
                     width: 1,
                   ),
                 ),
@@ -215,7 +238,7 @@ class _HomePageState extends State<HomePage> {
               const Spacer(),
               
               // 登出按鈕
-              Container(
+              SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
@@ -293,10 +316,10 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(0xFFFFBE0A).withOpacity(0.3),
+            color: AppColors.primary300,
             width: 1,
           ),
         ),
@@ -304,7 +327,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(
               icon,
-              color: const Color(0xFFFFBE0A),
+              color: AppColors.primary900,
               size: 24,
             ),
             const SizedBox(width: 16),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'custom_button.dart';
+import 'app_colors.dart';
 
 /// 服務條款滿版彈窗組件
 class TermsPopup extends StatelessWidget {
@@ -22,7 +23,7 @@ class TermsPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: GestureDetector(
         onTap: () {
           // 點擊空白區域時取消焦點
@@ -61,7 +62,7 @@ class TermsPopup extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: AppColors.textPrimary,
                 ),
               ),
               
@@ -75,7 +76,7 @@ class TermsPopup extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       height: 1.6,
-                      color: Colors.grey,
+                      color: AppColors.textSecondary,
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -100,6 +101,9 @@ class TermsPopupBuilder {
     // 稍微延遲確保焦點狀態清除
     await Future.delayed(const Duration(milliseconds: 100));
     
+    // 在 Navigator push 前檢查 context 是否仍然有效
+    if (!context.mounted) return;
+    
     await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -123,6 +127,9 @@ class TermsPopupBuilder {
     
     // 稍微延遲確保焦點狀態清除
     await Future.delayed(const Duration(milliseconds: 100));
+    
+    // 在 Navigator push 前檢查 context 是否仍然有效
+    if (!context.mounted) return;
     
     await Navigator.of(context).push(
       MaterialPageRoute(

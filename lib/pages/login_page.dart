@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../components/design_system/custom_text_input.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/terms_popup.dart';
+import '../components/design_system/app_colors.dart';
 import '../services/auth_service.dart';
 import 'registration_page.dart';
 import 'home.dart';
@@ -13,37 +14,28 @@ class LoginPage extends StatefulWidget {
   LoginPageState createState() => LoginPageState();
 }
 
-class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late TabController _tabController;
+class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _rememberMe = false;
   bool _isLoading = false;
   bool _agreeToTerms = false;
   double _previousViewInsetsBottom = 0;
+  String? _emailError;
+  String? _passwordError;
+  String? _generalError;
 
   final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addObserver(this);
-    
-    // 監聽 Tab 切換事件
-    _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
-        setState(() {
-          // 重新構建 UI 以反映 Tab 變化
-        });
-      }
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _tabController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -64,6 +56,31 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
     _previousViewInsetsBottom = currentViewInsetsBottom;
   }
 
+  // 處理登入按鈕點擊
+  void _handleLoginButtonPressed() {
+    if (!_agreeToTerms) {
+      // 如果沒有同意服務條款，顯示提示對話框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('提示'),
+          content: const Text('請先勾選並同意服務條款及隱私權政策。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('確定'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    
+    // 如果已同意條款，執行登入
+    _signInWithEmailPassword();
+  }
+
   // Firebase Email/Password 登入
   Future<void> _signInWithEmailPassword() async {
     if (!_validateInputs()) return;
@@ -80,25 +97,55 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
         debugPrint('登入成功: ${user.email}');
         _onLoginSuccess();
       } else {
-        _showErrorDialog('登入失敗：無法獲取用戶資訊');
+        setState(() {
+          _generalError = '登入失敗：無法獲取用戶資訊';
+        });
       }
     } catch (e) {
       debugPrint('登入錯誤: $e');
-      _showErrorDialog(e.toString());
+      _handleLoginError(e.toString());
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  void _handleLoginError(String error) {
+    setState(() {
+      // 清除之前的錯誤訊息
+      _emailError = null;
+      _passwordError = null;
+      _generalError = null;
+      
+      // 根據錯誤類型設置相對應的錯誤訊息
+      if (error.contains('密碼錯誤') || error.contains('wrong-password')) {
+        _passwordError = '密碼錯誤';
+      } else if (error.contains('找不到此用戶帳號') || error.contains('user-not-found')) {
+        _emailError = '找不到此用戶帳號';
+      } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
+        _emailError = '電子郵件格式錯誤';
+      } else if (error.contains('此帳號已被停用') || error.contains('user-disabled')) {
+        _generalError = '此帳號已被停用';
+      } else if (error.contains('嘗試次數過多') || error.contains('too-many-requests')) {
+        _generalError = '嘗試次數過多，請稍後再試';
+      } else {
+        _generalError = '登入失敗：$error';
+      }
+    });
+  }
+
   // 忘記密碼
   Future<void> _resetPassword() async {
     if (_emailController.text.trim().isEmpty) {
-      _showErrorDialog('請先輸入電子信箱');
+      setState(() {
+        _emailError = '請先輸入電子信箱';
+      });
       return;
     }
     
     if (!_emailController.text.contains('@')) {
-      _showErrorDialog('請輸入有效的電子信箱格式');
+      setState(() {
+        _emailError = '請輸入有效的電子信箱格式';
+      });
       return;
     }
 
@@ -109,55 +156,68 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
         email: _emailController.text.trim(),
       );
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('重設密碼郵件已發送，請檢查您的信箱'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('重設密碼郵件已發送，請檢查您的信箱'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      _showErrorDialog(e.toString());
+      _handlePasswordResetError(e.toString());
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  void _handlePasswordResetError(String error) {
+    setState(() {
+      _generalError = null;
+      _passwordError = null;
+      
+      if (error.contains('找不到此電子郵件帳號') || error.contains('user-not-found')) {
+        _emailError = '找不到此電子郵件帳號';
+      } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
+        _emailError = '電子郵件格式錯誤';
+      } else {
+        _emailError = '發送失敗：$error';
+      }
+    });
+  }
+
   bool _validateInputs() {
+    bool isValid = true;
+    
+    // 清除之前的錯誤訊息
+    setState(() {
+      _emailError = null;
+      _passwordError = null;
+      _generalError = null;
+    });
+    
     if (_emailController.text.trim().isEmpty) {
-      _showErrorDialog('請輸入電子信箱');
-      return false;
+      setState(() {
+        _emailError = '請輸入電子信箱';
+      });
+      isValid = false;
+    } else if (!_emailController.text.contains('@')) {
+      setState(() {
+        _emailError = '請輸入有效的電子信箱格式';
+      });
+      isValid = false;
     }
-    if (!_emailController.text.contains('@')) {
-      _showErrorDialog('請輸入有效的電子信箱格式');
-      return false;
-    }
+    
     if (_passwordController.text.isEmpty) {
-      _showErrorDialog('請輸入密碼');
-      return false;
+      setState(() {
+        _passwordError = '請輸入密碼';
+      });
+      isValid = false;
     }
-    if (!_agreeToTerms) {
-      _showErrorDialog('請同意服務條款');
-      return false;
-    }
-    return true;
+    
+    return isValid;
   }
 
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('錯誤'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('確定'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _onLoginSuccess() {
     // 導航到首頁
@@ -183,7 +243,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.backgroundPrimary,
       resizeToAvoidBottomInset: true, // 自動調整以避免鍵盤遮擋
       body: GestureDetector(
         onTap: () {
@@ -230,7 +290,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                         style: TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.white,
                         ),
                       );
                     },
@@ -238,75 +298,27 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                 ),
               ),
               
-              // 個人/企業選項卡
-              SizedBox(
-                height: 48,
-                child: TabBar(
-                  controller: _tabController,
-                  splashFactory: NoSplash.splashFactory, // 移除點擊水波紋效果
-                  overlayColor: WidgetStateProperty.all(Colors.transparent), // 移除點擊背景色
-                  padding: EdgeInsets.zero, // 移除TabBar的左右padding
-                  labelPadding: EdgeInsets.zero, // 移除每個Tab的padding
-                  dividerColor: Colors.grey[300],
-                  indicator: const UnderlineTabIndicator(
-                    borderSide: BorderSide(
-                      color: Colors.black,
-                      width: 2.0,
-                    ),
-                    insets: EdgeInsets.zero, // 移除內邊距，讓底線橫跨整個選項卡
-                  ),
-                  labelColor: Colors.black,
-                  unselectedLabelColor: Colors.grey,
-                  labelStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.normal,
-                  ),
-                  tabs: const [
-                    Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_outline_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('個人'),
-                        ],
-                      ),
-                    ),
-                    Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.work_outline_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('企業'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 24),
               
               // 表單內容區域
               Column(
                 children: [
                       // 電子信箱輸入框
                       CustomTextInput(
-                        label: _tabController.index == 0 ? '電子信箱' : '企業電子信箱',
+                        label: '電子信箱',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
+                        errorText: _emailError,
                         onChanged: (value) {
-                          // 可以在這裡添加驗證邏輯
+                          if (_emailError != null) {
+                            setState(() {
+                              _emailError = null;
+                            });
+                          }
                         },
                       ),
                       
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
                       
                       // 密碼輸入框
                       CustomTextInput(
@@ -314,12 +326,17 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                         controller: _passwordController,
                         obscureText: true,
                         textInputAction: TextInputAction.done,
+                        errorText: _passwordError,
                         onChanged: (value) {
-                          // 可以在這裡添加驗證邏輯
+                          if (_passwordError != null) {
+                            setState(() {
+                              _passwordError = null;
+                            });
+                          }
                         },
                       ),
                       
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
                       
                       // 記住我 & 其他選項
                       Row(
@@ -334,8 +351,8 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                   _rememberMe = value ?? false;
                                 });
                               },
-                              activeColor: const Color(0xFFFFBE0A),
-                              side: BorderSide(color: Colors.grey, width: 1.5),
+                              activeColor: AppColors.primary900,
+                              side: BorderSide(color: AppColors.border, width: 1.5),
                               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               visualDensity: VisualDensity.compact,
                             ),
@@ -352,7 +369,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Colors.grey,
+                                color: AppColors.textSecondary,
                                 letterSpacing: 0.26,
                               ),
                             ),
@@ -372,7 +389,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Colors.grey,
+                                color: AppColors.textSecondary,
                                 letterSpacing: 0.26,
                               ),
                             ),
@@ -384,7 +401,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                               fontSize: 15,
                               height: 1.6,
                               fontWeight: FontWeight.w400,
-                              color: Colors.grey,
+                              color: AppColors.textSecondary,
                               letterSpacing: 0.26,
                             ),
                           ),
@@ -393,8 +410,8 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => RegistrationPage(
-                                    isBusinessRegistration: _tabController.index == 1,
+                                  builder: (context) => const RegistrationPage(
+                                    isBusinessRegistration: false,
                                   ),
                                 ),
                               );
@@ -411,7 +428,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Colors.grey,
+                                color: AppColors.textSecondary,
                                 letterSpacing: 0.26,
                               ),
                             ),
@@ -419,15 +436,39 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                         ],
                       ),
                       
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 4),
+                      
+                      // 通用錯誤訊息區域（始終預留空間）
+                      Container(
+                        width: double.infinity,
+                        height: _generalError != null ? null : 0, // 沒有錯誤時高度為0
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: _generalError != null 
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.error100,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.error300),
+                              ),
+                              child: Text(
+                                _generalError!,
+                                style: const TextStyle(
+                                  color: AppColors.error900,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            )
+                          : null, // 沒有錯誤時不顯示內容，但保持容器結構
+                      ),
                       
                       // 登入按鈕
                       ButtonBuilder.primary(
-                        onPressed: _agreeToTerms ? _signInWithEmailPassword : null,
+                        onPressed: _handleLoginButtonPressed,
                         text: '登入',
                         width: double.infinity,
                         isLoading: _isLoading,
-                        isEnabled: _agreeToTerms && !_isLoading,
+                        isEnabled: !_isLoading,
                       ),
                       
                       const SizedBox(height: 16),
@@ -444,10 +485,13 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                               onChanged: (value) {
                                 setState(() {
                                   _agreeToTerms = value ?? false;
+                                  if (_generalError != null) {
+                                    _generalError = null;
+                                  }
                                 });
                               },
-                              activeColor: const Color(0xFFFFBE0A),
-                              side: BorderSide(color: Colors.grey, width: 1.5),
+                              activeColor: AppColors.primary900,
+                              side: BorderSide(color: AppColors.border, width: 1.5),
                               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               visualDensity: VisualDensity.compact,
                             ),
@@ -456,6 +500,9 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                             onTap: () {
                               setState(() {
                                 _agreeToTerms = !_agreeToTerms;
+                                if (_generalError != null) {
+                                  _generalError = null;
+                                }
                               });
                             },
                             child: const Text(
@@ -464,7 +511,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Colors.grey,
+                                color: AppColors.textSecondary,
                                 letterSpacing: 0.26,
                               ),
                             ),
@@ -485,9 +532,9 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Color(0xFFFFBE0A),
+                                color: AppColors.primary900,
                                 decoration: TextDecoration.underline,
-                                decorationColor: Color(0xFFFFBE0A),
+                                decorationColor: AppColors.primary900,
                                 letterSpacing: 0.26,
                               ),
                             ),
@@ -498,7 +545,7 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                               fontSize: 15,
                               height: 1.6,
                               fontWeight: FontWeight.w400,
-                              color: Colors.grey,
+                              color: AppColors.textSecondary,
                               letterSpacing: 0.26,
                             ),
                           ),
@@ -518,9 +565,9 @@ class LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixi
                                 fontSize: 15,
                                 height: 1.6,
                                 fontWeight: FontWeight.w400,
-                                color: Color(0xFFFFBE0A),
+                                color: AppColors.primary900,
                                 decoration: TextDecoration.underline,
-                                decorationColor: Color(0xFFFFBE0A),
+                                decorationColor: AppColors.primary900,
                                 letterSpacing: 0.26,
                               ),
                             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// 自定義按鈕組件，與輸入框保持一致的設計風格
 class CustomButton extends StatelessWidget {
@@ -133,7 +134,7 @@ class CustomButton extends StatelessWidget {
 
   Color _getBackgroundColor(ThemeData theme) {
     if (!isEnabled) {
-      return Colors.grey.shade300;
+      return AppColors.grey300;
     }
 
     if (backgroundColor != null) {
@@ -142,15 +143,15 @@ class CustomButton extends StatelessWidget {
 
     switch (style) {
       case CustomButtonStyle.primary:
-        return const Color(0xFFFFBE0A);
+        return AppColors.primary900;
       case CustomButtonStyle.secondary:
-        return const Color(0xFFAC6DFF);
+        return AppColors.secondary900;
       case CustomButtonStyle.success:
-        return const Color(0xFF00B383);
+        return AppColors.success900;
       case CustomButtonStyle.danger:
-        return const Color(0xFFEF2562);
+        return AppColors.error900;
       case CustomButtonStyle.info:
-        return const Color(0xFFF2F2F2);
+        return AppColors.grey100;
       case CustomButtonStyle.outline:
         return Colors.transparent;
       case CustomButtonStyle.text:
@@ -160,7 +161,7 @@ class CustomButton extends StatelessWidget {
 
   Color _getTextColor(ThemeData theme) {
     if (!isEnabled) {
-      return Colors.grey.shade600;
+      return AppColors.grey700;
     }
 
     if (textColor != null) {
@@ -169,19 +170,19 @@ class CustomButton extends StatelessWidget {
 
     switch (style) {
       case CustomButtonStyle.primary:
-        return Colors.black;
+        return AppColors.black;
       case CustomButtonStyle.secondary:
-        return Colors.white;
+        return AppColors.white;
       case CustomButtonStyle.success:
-        return Colors.white;
+        return AppColors.white;
       case CustomButtonStyle.danger:
-        return Colors.white;
+        return AppColors.white;
       case CustomButtonStyle.info:
-        return Colors.black;
+        return AppColors.black;
       case CustomButtonStyle.outline:
-        return Colors.black;
+        return AppColors.black;
       case CustomButtonStyle.text:
-        return theme.primaryColor;
+        return AppColors.brandPrimary;
     }
   }
 
@@ -202,7 +203,7 @@ class CustomButton extends StatelessWidget {
         return null;
       case CustomButtonStyle.outline:
         return BorderSide(
-          color: Colors.grey.shade300,
+          color: AppColors.border,
           width: 1.0,
         );
       case CustomButtonStyle.text:
@@ -229,11 +230,11 @@ class CustomButton extends StatelessWidget {
       case CustomButtonStyle.info:
       case CustomButtonStyle.outline:
       case CustomButtonStyle.text:
-        return Colors.black;
+        return AppColors.black;
       case CustomButtonStyle.secondary:
       case CustomButtonStyle.success:
       case CustomButtonStyle.danger:
-        return Colors.white;
+        return AppColors.white;
     }
   }
 }

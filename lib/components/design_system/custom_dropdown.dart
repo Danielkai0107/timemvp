@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// 自定義下拉選單組件，與 CustomTextInput 保持一致的設計風格
 /// 支援傳統下拉選單和彈窗式選擇器兩種模式
@@ -128,18 +129,18 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
   /// 獲取邊框顏色
   Color _getBorderColor() {
     if (!widget.isEnabled) {
-      return Colors.grey.shade300;
+      return AppColors.grey300;
     }
     
     if (widget.errorText != null) {
-      return Colors.red;
+      return AppColors.error900;
     }
     
     if (_isFocused) {
-      return Colors.black;
+      return AppColors.black;
     }
     
-    return Colors.grey.shade300;
+    return AppColors.border;
   }
 
   /// 獲取邊框寬度
@@ -153,18 +154,18 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
   /// 獲取標籤顏色
   Color _getLabelColor() {
     if (!widget.isEnabled) {
-      return Colors.grey.shade400;
+      return AppColors.grey500;
     }
     
     if (widget.errorText != null) {
-      return Colors.red;
+      return AppColors.error900;
     }
     
     if (_isFocused) {
-      return Colors.black;
+      return AppColors.black;
     }
     
-    return Colors.grey.shade600;
+    return AppColors.textSecondary;
   }
 
   /// 顯示底部選擇器
@@ -224,7 +225,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                 width: _getBorderWidth(),
               ),
               borderRadius: BorderRadius.circular(widget.borderRadius),
-              color: widget.isEnabled ? Colors.white : Colors.grey.shade50,
+              color: widget.isEnabled ? AppColors.white : AppColors.grey100,
             ),
             child: Stack(
               children: [
@@ -244,7 +245,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                         _displayText,
                         style: const TextStyle(
                           fontSize: 16,
-                          color: Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -265,12 +266,12 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                         isExpanded: true,
                         icon: const Icon(
                           Icons.keyboard_arrow_down,
-                          color: Colors.grey,
+                          color: AppColors.grey500,
                           size: 24,
                         ),
                         style: const TextStyle(
                           fontSize: 16,
-                          color: Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                         onChanged: widget.isEnabled ? widget.onChanged : null,
                         items: widget.items.map((item) {
@@ -280,7 +281,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                               item.label,
                               style: const TextStyle(
                                 fontSize: 16,
-                                color: Colors.black,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           );
@@ -298,7 +299,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     child: Center(
                       child: Icon(
                         Icons.keyboard_arrow_down,
-                        color: Colors.grey,
+                        color: AppColors.grey500,
                         size: 24,
                       ),
                     ),
@@ -326,20 +327,24 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
           ),
         ),
         
-        // 錯誤文字
-        if (widget.errorText != null) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              widget.errorText!,
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
+        // 錯誤文字區域（始終預留空間）
+        const SizedBox(height: 4),
+        Container(
+          height: 16, // 固定高度，相當於12px字體 + 4px行間距
+          alignment: Alignment.centerLeft,
+          child: widget.errorText != null 
+            ? Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Text(
+                  widget.errorText!,
+                  style: const TextStyle(
+                    color: AppColors.error900,
+                    fontSize: 12,
+                  ),
+                ),
+              )
+            : null, // 沒有錯誤時顯示空白，但保持高度
+        ),
       ],
     );
   }
@@ -546,7 +551,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
         maxHeight: MediaQuery.of(context).size.height * 0.75,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -561,7 +566,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: AppColors.grey300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -669,7 +674,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
                                 ? const Icon(
                                     Icons.check,
                                     size: 16,
-                                    color: Colors.white,
+                                    color: AppColors.white,
                                   )
                                 : null,
                           )
@@ -680,7 +685,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: isSelected 
-                                    ? const Color(0xFFFFBE0A)  // 黃色邊框
+                                    ? AppColors.primary900  // 黃色邊框
                                     : Colors.grey.shade300,
                                 width: isSelected ? 6 : 2,  // 已選取時較粗的邊框形成圓環
                               ),
@@ -729,8 +734,8 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.black,
+                    foregroundColor: AppColors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

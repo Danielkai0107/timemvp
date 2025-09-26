@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "259215238335",
+    "project_id": "time-mvp-7b126",
+    "storage_bucket": "time-mvp-7b126.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259215238335:android:37848e81df6601ef6b520a",
+        "android_client_info": {
+          "package_name": "time.mvp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "259215238335-nu7jispalhndv2qsakv69rk1jr59f5bs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "time.mvp",
+            "certificate_hash": "9263443e37234d002381fa7aedcab8651e3beb82"
+          }
+        },
+        {
+          "client_id": "259215238335-4e7oiempvp8cp0vqm0ot02f48htu4r44.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0JQYs_jiWgeh9EtiQBrYY0ts-_bbLwf8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "259215238335-4e7oiempvp8cp0vqm0ot02f48htu4r44.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

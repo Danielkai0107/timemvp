@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'app_colors.dart';
 
 /// 相片上傳組件
 class PhotoUpload extends StatefulWidget {
@@ -143,7 +144,7 @@ class PhotoUploadState extends State<PhotoUpload> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
@@ -158,7 +159,7 @@ class PhotoUploadState extends State<PhotoUpload> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: AppColors.grey300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -184,7 +185,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -238,7 +239,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                         '從相簿選擇',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       onTap: () {
@@ -263,7 +264,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                       '拍照',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     onTap: () {
@@ -327,7 +328,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.grey.shade300,
+                          color: AppColors.grey300,
                           width: 1,
                         ),
                       ),
@@ -370,7 +371,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                           child: const Icon(
                             Icons.close,
                             size: 16,
-                            color: Colors.white,
+                            color: AppColors.white,
                           ),
                         ),
                       ),
@@ -388,16 +389,16 @@ class PhotoUploadState extends State<PhotoUpload> {
             width: double.infinity,
             height: 60,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
+              border: Border.all(color: AppColors.border),
               borderRadius: BorderRadius.circular(12),
-              color: Colors.white,
+              color: AppColors.white,
             ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   Icons.add,
-                  color: Colors.black,
+                  color: AppColors.textPrimary,
                   size: 20,
                 ),
                 SizedBox(width: 8),
@@ -405,7 +406,7 @@ class PhotoUploadState extends State<PhotoUpload> {
                   '新增相片',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.black,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],

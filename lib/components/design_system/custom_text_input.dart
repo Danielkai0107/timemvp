@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// Airbnb 風格的可重複使用文字輸入組件
 /// 具有浮動標籤、聚焦動畫和現代化設計
@@ -71,6 +72,10 @@ class CustomTextInputState extends State<CustomTextInput> {
   late FocusNode _focusNode;
   late TextEditingController _controller;
   bool _isFocused = false;
+  
+  // 監聽器函數，用於在 dispose 時移除
+  late VoidCallback _focusListener;
+  late VoidCallback _textListener;
 
   @override
   void initState() {
@@ -78,21 +83,33 @@ class CustomTextInputState extends State<CustomTextInput> {
     _focusNode = FocusNode();
     _controller = widget.controller ?? TextEditingController();
     
-    // 監聽聚焦變化
-    _focusNode.addListener(() {
-      setState(() {
-        _isFocused = _focusNode.hasFocus;
-      });
-    });
+    // 創建監聽器函數
+    _focusListener = () {
+      if (mounted) {
+        setState(() {
+          _isFocused = _focusNode.hasFocus;
+        });
+      }
+    };
     
-    // 監聽文字變化
-    _controller.addListener(() {
-      setState(() {});
-    });
+    _textListener = () {
+      if (mounted) {
+        setState(() {});
+      }
+    };
+    
+    // 添加監聽器
+    _focusNode.addListener(_focusListener);
+    _controller.addListener(_textListener);
   }
 
   @override
   void dispose() {
+    // 移除監聽器
+    _focusNode.removeListener(_focusListener);
+    _controller.removeListener(_textListener);
+    
+    // 釋放資源
     _focusNode.dispose();
     if (widget.controller == null) {
       _controller.dispose();
@@ -128,7 +145,7 @@ class CustomTextInputState extends State<CustomTextInput> {
                 width: _getBorderWidth(),
               ),
               borderRadius: BorderRadius.circular(widget.borderRadius),
-              color: widget.isEnabled ? Colors.white : Colors.grey.shade50,
+              color: widget.isEnabled ? AppColors.white : AppColors.grey100,
             ),
             child: Stack(
             children: [
@@ -142,9 +159,9 @@ class CustomTextInputState extends State<CustomTextInput> {
                 keyboardType: widget.keyboardType,
                 textInputAction: widget.textInputAction,
                 maxLines: widget.obscureText ? 1 : widget.maxLines,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.black,
+                  color: AppColors.textPrimary,
                 ),
                 onChanged: widget.onChanged,
                 onSubmitted: widget.onSubmitted,
@@ -199,20 +216,24 @@ class CustomTextInputState extends State<CustomTextInput> {
           ),
         ),
         
-        // 錯誤文字
-        if (widget.errorText != null) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              widget.errorText!,
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
+        // 錯誤文字區域（始終預留空間）
+        const SizedBox(height: 4),
+        Container(
+          height:16, // 固定高度，相當於12px字體 + 4px行間距
+          alignment: Alignment.centerLeft,
+          child: widget.errorText != null 
+            ? Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  widget.errorText!,
+                  style: const TextStyle(
+                    color: AppColors.error900,
+                    fontSize: 12,
+                  ),
+                ),
+              )
+            : null, // 沒有錯誤時顯示空白，但保持高度
+        ),
       ],
     );
   }
@@ -220,18 +241,18 @@ class CustomTextInputState extends State<CustomTextInput> {
   /// 獲取邊框顏色
   Color _getBorderColor() {
     if (!widget.isEnabled) {
-      return Colors.grey.shade300;
+      return AppColors.grey300;
     }
     
     if (widget.errorText != null) {
-      return Colors.red;
+      return AppColors.error900;
     }
     
     if (_isFocused) {
-      return Colors.black;
+      return AppColors.black;
     }
     
-    return Colors.grey.shade300;
+    return AppColors.border;
   }
 
   /// 獲取邊框寬度
@@ -245,18 +266,18 @@ class CustomTextInputState extends State<CustomTextInput> {
   /// 獲取標籤顏色
   Color _getLabelColor() {
     if (!widget.isEnabled) {
-      return Colors.grey.shade400;
+      return AppColors.grey500;
     }
     
     if (widget.errorText != null) {
-      return Colors.red;
+      return AppColors.error900;
     }
     
     if (_isFocused) {
-      return Colors.black;
+      return AppColors.black;
     }
     
-    return Colors.grey.shade600;
+    return AppColors.textSecondary;
   }
 }
 
