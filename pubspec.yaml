@@ -47,6 +47,9 @@ dependencies:
   
   # Path-based file operations
   path_provider: ^2.1.4
+  
+  # SVG support
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:

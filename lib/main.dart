@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'pages/login_page.dart';
-import 'pages/home.dart';
+import 'pages/main_navigation.dart';
 import 'services/auth_service.dart';
 
 void main() async {
@@ -54,6 +54,8 @@ class MyApp extends StatelessWidget {
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFFBE0A)),
+        scaffoldBackgroundColor: Colors.white,
+        canvasColor: Colors.white,
       ),
       home: _AuthStateWidget(),
     );
@@ -103,6 +105,7 @@ class _AuthStateWidgetState extends State<_AuthStateWidget> {
     // 顯示載入畫面直到認證狀態確定
     if (!_isInitialized) {
       return const Scaffold(
+        backgroundColor: Colors.white,
         body: Center(
           child: CircularProgressIndicator(),
         ),
@@ -110,7 +113,7 @@ class _AuthStateWidgetState extends State<_AuthStateWidget> {
     }
 
     // 根據認證狀態導航
-    return _hasUser ? const HomePage() : const LoginPage();
+    return _hasUser ? const MainNavigationPage() : const LoginPage();
   }
 }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../components/design_system/app_colors.dart';
+import '../components/category_tabs.dart';
+import '../components/activity_card.dart';
 import '../services/auth_service.dart';
-import '../services/user_service.dart';
 import 'login_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,11 +15,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
-  final UserService _userService = UserService();
   
   AuthUser? _currentUser;
-  Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  
+  int _selectedCategoryIndex = 0;
 
   @override
   void initState() {
@@ -30,23 +32,12 @@ class _HomePageState extends State<HomePage> {
       _currentUser = _authService.currentUser;
       if (_currentUser != null) {
         debugPrint('載入用戶資料: ${_currentUser!.uid}');
-        final doc = await _userService.getUserDocument(_currentUser!.uid);
-        if (doc.exists && doc.data() != null) {
-          if (mounted) {
-            setState(() {
-              _userData = doc.data() as Map<String, dynamic>;
-              _isLoading = false;
-            });
-          }
-          debugPrint('用戶資料載入成功');
-        } else {
-          debugPrint('用戶文檔不存在或為空');
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
         }
+        debugPrint('用戶資料載入成功');
       } else {
         // 用戶未登入，但不立即導航，讓AuthStateWidget處理
         debugPrint('用戶未登入，應該由AuthStateWidget處理');
@@ -79,22 +70,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      _navigateToLogin();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登出失敗: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -107,262 +82,212 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          'TiMe',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout, color: Colors.black),
-            tooltip: '登出',
-          ),
-        ],
-      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 歡迎訊息
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primary100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.primary300,
-                    width: 1,
+        child: Column(
+          children: [
+            // 頂部搜尋、位置和日期時間區域
+            _buildTopSection(),
+
+            const SizedBox(height: 8),
+            
+            // 分類標籤
+            _buildCategoryTabs(),
+
+            const SizedBox(height: 8),
+
+            
+            // 活動列表
+            Expanded(
+              child: _buildActivityList(),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('新增活動功能即將推出')),
+          );
+        },
+        backgroundColor: AppColors.primary900,
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+          size: 28,
+        ),
+      ),
+    );
+  }
+
+
+  // 頂部搜尋、位置和日期時間區域
+  Widget _buildTopSection() {
+    final now = DateTime.now();
+    final dateStr = '${now.month}/${now.day}';
+    
+    return GestureDetector(
+      onTap: () {
+        // TODO: 打開篩選 popup
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('篩選功能即將推出')),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // 搜尋和位置區域
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/images/search.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(
+                    Colors.grey.shade600,
+                    BlendMode.srcIn,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '歡迎回來！',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _userData != null && _userData!['name'] != null
-                          ? '您好，${_userData!['name']}'
-                          : '您好，${_currentUser?.email ?? '用戶'}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                const Text(
+                  '搜尋',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
-              ),
-              
-              const SizedBox(height: 32),
-              
-              // 帳戶資訊
-              const Text(
-                '帳戶資訊',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              _buildInfoCard('電子信箱', _currentUser?.email ?? '未知'),
-              
-              if (_userData != null) ...[
-                _buildInfoCard(
-                  '帳戶類型', 
-                  _userData!['accountType'] == 'business' ? '企業帳戶' : '個人帳戶'
-                ),
-                
-                if (_userData!['accountType'] == 'personal') ...[
-                  if (_userData!['name'] != null)
-                    _buildInfoCard('姓名', _userData!['name']),
-                  if (_userData!['gender'] != null)
-                    _buildInfoCard('性別', _getGenderDisplayName(_userData!['gender'])),
-                  if (_userData!['age'] != null)
-                    _buildInfoCard('年齡', '${_userData!['age']} 歲'),
-                ] else ...[
-                  if (_userData!['companyName'] != null)
-                    _buildInfoCard('企業名稱', _userData!['companyName']),
-                  if (_userData!['contactName'] != null)
-                    _buildInfoCard('聯絡人', _userData!['contactName']),
-                ],
-                
-                _buildInfoCard(
-                  '驗證狀態', 
-                  _userData!['isVerified'] == true ? '已驗證' : '未驗證'
+                const Spacer(),
+                Text(
+                  '台北市，大安區',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
-              
-              const SizedBox(height: 32),
-              
-              // 功能按鈕
-              const Text(
-                '功能',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              _buildActionButton(
-                icon: Icons.refresh,
-                title: '重新載入資料',
-                onTap: () {
-                  setState(() {
-                    _isLoading = true;
-                  });
-                  _loadUserData();
-                },
-              ),
-              
-              const Spacer(),
-              
-              // 登出按鈕
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _signOut,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    '登出',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // 日期和時間區域
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  dateStr,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black,
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(String label, String value) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.primary300,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: AppColors.primary900,
-              size: 24,
-            ),
-            const SizedBox(width: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.black,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Spacer(),
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.grey,
-              size: 16,
+                Text(
+                  '08:00 - 17:00',
+                  style: TextStyle(
+                    fontSize: 30,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
-
-  String _getGenderDisplayName(String gender) {
-    switch (gender) {
-      case 'male':
-        return '男性';
-      case 'female':
-        return '女性';
-      case 'other':
-        return '其他';
-      case 'prefer_not_to_say':
-        return '不願透露';
-      default:
-        return gender;
-    }
+  
+  // 分類標籤
+  Widget _buildCategoryTabs() {
+    final categories = ['全部', '語言教學', '技能羅盤', '活動支援', '生活'];
+    
+    return CategoryTabs(
+      categories: categories,
+      initialIndex: _selectedCategoryIndex,
+      onTabChanged: (index) {
+        setState(() {
+          _selectedCategoryIndex = index;
+        });
+      },
+    );
   }
+  
+  // 活動列表
+  Widget _buildActivityList() {
+    final activities = _getSampleActivities();
+    
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: activities.length,
+      itemBuilder: (context, index) {
+        final activity = activities[index];
+        return ActivityCard(
+          title: activity['title'],
+          date: activity['date'],
+          time: activity['time'],
+          price: activity['price'],
+          location: activity['location'],
+          isPro: activity['isPro'] ?? false,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('點擊了活動: ${activity['title']}')),
+            );
+          },
+        );
+      },
+    );
+  }
+  
+  // 示例活動數據
+  List<Map<String, dynamic>> _getSampleActivities() {
+    return [
+      {
+        'title': '「台灣味！呷厲害」第一屆食農大會',
+        'date': '10/10 (六)',
+        'time': '9:00 - 12:00',
+        'price': '\$1,500 TWD',
+        'location': '台北市',
+        'isPro': true,
+      },
+      {
+        'title': '共讀時光｜打造專屬的親子攝影',
+        'date': '10/10 (六)',
+        'time': '12:00 - 16:00',
+        'price': '\$1,200 TWD',
+        'location': '台北市',
+        'isPro': true,
+      },
+      {
+        'title': '【免費線上講座】青少年的心聲，你聽見了嗎？',
+        'date': '10/10 (六)',
+        'time': '12:00 - 16:00',
+        'price': '免費｜線上',
+        'location': '',
+        'isPro': false,
+      },
+      {
+        'title': '孩子為什麼焦慮？理解青少年的壓力來源',
+        'date': '10/10 (六)',
+        'time': '12:00 - 16:00',
+        'price': '免費｜線上',
+        'location': '',
+        'isPro': false,
+      },
+    ];
+  }
+
 }
