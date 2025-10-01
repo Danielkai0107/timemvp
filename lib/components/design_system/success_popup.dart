@@ -293,6 +293,27 @@ class SuccessPopupBuilder {
     );
   }
 
+  /// 活動報名成功（底部彈出）
+  static void activityRegistrationBottom(
+    BuildContext context, {
+    VoidCallback? onConfirm,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => BottomSuccessPopup(
+        title: '報名成功',
+        message: '您已成功報名此活動，\n請準時參加。',
+        buttonText: '我知道了',
+        onButtonPressed: onConfirm ?? () => Navigator.of(context).pop(),
+        onClosePressed: onConfirm ?? () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+
   /// 付款成功
   static void paymentSuccess(
     BuildContext context, {

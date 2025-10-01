@@ -4,8 +4,11 @@ import '../components/design_system/app_colors.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/success_popup.dart';
 import '../components/design_system/custom_snackbar.dart';
+import '../components/design_system/activity_status_badge.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
+import 'my_activities_page.dart';
+import 'home.dart';
 
 class ActivityDetailPage extends StatefulWidget {
   final String activityId;
@@ -251,35 +254,35 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
                             _buildDivider(),
 
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             
                             // 日期時間
                             _buildDateTimeInfo(),
                             
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             _buildDivider(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             
                             // 報名費用
                             _buildPriceInfo(),
                             
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             _buildDivider(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             
                             // 地點資訊
                             _buildLocationInfo(),
                             
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             _buildDivider(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             
                             // 人數資訊
                             _buildParticipantsInfo(),
                             
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             _buildDivider(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                             
                             // 活動介紹
                             _buildDescription(),
@@ -370,14 +373,28 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   }
 
   Widget _buildTitle() {
-    return Text(
-      _activity!['name'] ?? '活動名稱',
-      style: const TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        color: Colors.black,
-        height: 1.3,
-      ),
+    final status = _getActivityStatus();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 狀態標籤（如果有的話）
+        if (status != null) ...[
+          StatusBadgeBuilder.medium(status),
+          const SizedBox(height: 24),
+        ],
+        
+        // 活動標題
+        Text(
+          _activity!['name'] ?? '活動名稱',
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+            height: 1.3,
+          ),
+        ),
+      ],
     );
   }
 
@@ -465,7 +482,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         Row(
           children: [
             Icon(
-              Icons.location_on,
+              Icons.location_on_outlined,
               size: 20,
               color: Colors.grey.shade600,
             ),
@@ -500,7 +517,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         Row(
           children: [
             Icon(
-              Icons.people,
+              Icons.people_alt_outlined,
               size: 20,
               color: Colors.grey.shade600,
             ),
@@ -539,7 +556,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         Row(
           children: [
             Icon(
-              Icons.description,
+              Icons.description_outlined,
               size: 20,
               color: Colors.grey.shade600,
             ),
@@ -802,28 +819,6 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
                 
                 const Spacer(),
                 
-                // 測試按鈕（開發用）
-                if (_currentUser != null) ...[
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.blue.shade300),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.bug_report,
-                        color: Colors.blue.shade600,
-                        size: 20,
-                      ),
-                      onPressed: () => _testFirestoreConnection(),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
                 
                 // 取消報名/取消發布按鈕
                 if (_currentUser != null)
@@ -918,7 +913,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   }
 
   Widget _buildRegisteredButton() {
-    return ButtonBuilder.secondary(
+    return ButtonBuilder.primary(
       onPressed: () {
         // TODO: 實現顯示報到條碼功能
         CustomSnackBarBuilder.info(context, '顯示報到條碼功能即將推出');
@@ -1094,6 +1089,28 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     return '共 $seats 人';
   }
 
+  /// 獲取活動狀態
+  ActivityStatus? _getActivityStatus() {
+    if (_activity == null || _currentUser == null) return null;
+    
+    // 如果是我的活動
+    if (_isMyActivity) {
+      final status = _activity!['status'] ?? 'published';
+      final activityType = _activity!['type'] ?? 'event';
+      return ActivityStatusUtils.fromString(status, activityType);
+    }
+    
+    // 如果已報名
+    if (_isRegistered) {
+      // 這裡可以根據報名狀態來決定
+      // 目前簡單返回報名成功狀態
+      return ActivityStatus.registrationSuccess;
+    }
+    
+    // 未報名的活動不顯示狀態標籤
+    return null;
+  }
+
   void _showCancelPublishDialog() {
     SuccessPopupBuilder.cancelPublish(
       context,
@@ -1143,7 +1160,19 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
           _isRegistered = true;
         });
         
-        CustomSnackBarBuilder.success(context, '報名成功！');
+        // 顯示報名成功popup（底部彈出）
+        SuccessPopupBuilder.activityRegistrationBottom(
+          context,
+          onConfirm: () {
+            Navigator.of(context).pop();
+          },
+        );
+        
+        // 觸發我的活動頁面重整
+        MyActivitiesPageController.refreshActivities();
+        
+        // 觸發首頁重整
+        HomePageController.refreshActivities();
         
         // 重新檢查報名狀態以確認
         await _checkRegistrationStatus();
@@ -1174,6 +1203,12 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         });
         
         CustomSnackBarBuilder.success(context, '已取消報名');
+        
+        // 觸發我的活動頁面重整
+        MyActivitiesPageController.refreshActivities();
+        
+        // 觸發首頁重整
+        HomePageController.refreshActivities();
       }
     } catch (e) {
       if (mounted) {
@@ -1191,6 +1226,13 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
       if (mounted) {
         CustomSnackBarBuilder.success(context, '活動已取消發布');
+        
+        // 觸發我的活動頁面重整
+        MyActivitiesPageController.refreshActivities();
+        
+        // 觸發首頁重整
+        HomePageController.refreshActivities();
+        
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -1200,20 +1242,4 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     }
   }
 
-  /// 測試 Firestore 連接（開發用）
-  Future<void> _testFirestoreConnection() async {
-    try {
-      CustomSnackBarBuilder.info(context, '正在測試 Firestore 連接...');
-      
-      await _activityService.testFirestoreConnection();
-      
-      if (mounted) {
-        CustomSnackBarBuilder.success(context, 'Firestore 連接測試成功！');
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomSnackBarBuilder.error(context, 'Firestore 連接測試失敗: $e');
-      }
-    }
-  }
 }

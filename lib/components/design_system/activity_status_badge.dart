@@ -32,9 +32,9 @@ class ActivityStatusBadge extends StatelessWidget {
   const ActivityStatusBadge({
     super.key,
     required this.status,
-    this.fontSize = 12.0,
+    this.fontSize = 13.0,
     this.padding,
-    this.borderRadius = 6.0,
+    this.borderRadius = 20.0,
   });
 
   @override
@@ -42,7 +42,7 @@ class ActivityStatusBadge extends StatelessWidget {
     final colors = _getStatusColors(status);
     
     return Container(
-      padding: padding ?? const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: colors.backgroundColor,
         borderRadius: BorderRadius.circular(borderRadius),
@@ -51,13 +51,29 @@ class ActivityStatusBadge extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Text(
-        status.displayName,
-        style: TextStyle(
-          color: colors.textColor,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w500,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 圓點
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: colors.dotColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 文字
+          Text(
+            status.displayName,
+            style: TextStyle(
+              color: colors.textColor,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -65,46 +81,51 @@ class ActivityStatusBadge extends StatelessWidget {
   /// 根據狀態獲取對應的顏色配置
   StatusColors _getStatusColors(ActivityStatus status) {
     switch (status) {
-      // 成功狀態 - 綠色系
+      // 成功狀態 - 綠色圓點
       case ActivityStatus.registrationSuccess:
       case ActivityStatus.applicationSuccess:
-        return StatusColors(
-          backgroundColor: AppColors.success100,
-          borderColor: AppColors.success300,
-          textColor: AppColors.success900,
-        );
-      
-      // 進行中狀態 - 黃色系
-      case ActivityStatus.eventPublished:
-      case ActivityStatus.taskRecruiting:
-        return StatusColors(
-          backgroundColor: AppColors.primary100,
-          borderColor: AppColors.primary300,
-          textColor: AppColors.primary900,
-        );
-      
-      // 等待中狀態 - 紫色系
-      case ActivityStatus.applicationPending:
-        return StatusColors(
-          backgroundColor: AppColors.secondary100,
-          borderColor: AppColors.secondary300,
-          textColor: AppColors.secondary900,
-        );
-      
-      // 結束狀態 - 灰色系
-      case ActivityStatus.ended:
-        return StatusColors(
-          backgroundColor: AppColors.grey100,
+        return const StatusColors(
+          backgroundColor: Colors.white,
           borderColor: AppColors.grey300,
           textColor: AppColors.grey700,
+          dotColor: AppColors.success900,
         );
       
-      // 取消狀態 - 紅色系
+      // 進行中狀態 - 主色圓點
+      case ActivityStatus.eventPublished:
+      case ActivityStatus.taskRecruiting:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.primary900,
+        );
+      
+      // 等待中狀態 - 次要色圓點
+      case ActivityStatus.applicationPending:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.secondary900,
+        );
+      
+      // 結束狀態 - 灰色圓點
+      case ActivityStatus.ended:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.grey500,
+        );
+      
+      // 取消狀態 - 灰色圓點
       case ActivityStatus.cancelled:
-        return StatusColors(
-          backgroundColor: AppColors.error100,
-          borderColor: AppColors.error300,
-          textColor: AppColors.error900,
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.grey500,
         );
     }
   }
@@ -115,33 +136,121 @@ class StatusColors {
   final Color backgroundColor;
   final Color borderColor;
   final Color textColor;
+  final Color dotColor;
 
   const StatusColors({
     required this.backgroundColor,
     required this.borderColor,
     required this.textColor,
+    required this.dotColor,
   });
+}
+
+/// 小尺寸狀態標籤組件（無外框）
+class _SmallStatusBadge extends StatelessWidget {
+  final ActivityStatus status;
+
+  const _SmallStatusBadge({
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _getStatusColors(status);
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 圓點
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: colors.dotColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        // 文字
+        Text(
+          status.displayName,
+          style: TextStyle(
+            color: colors.textColor,
+            fontSize: 13.0,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 根據狀態獲取對應的顏色配置
+  StatusColors _getStatusColors(ActivityStatus status) {
+    switch (status) {
+      // 成功狀態 - 綠色圓點
+      case ActivityStatus.registrationSuccess:
+      case ActivityStatus.applicationSuccess:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.success900,
+        );
+      
+      // 進行中狀態 - 主色圓點
+      case ActivityStatus.eventPublished:
+      case ActivityStatus.taskRecruiting:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.primary900,
+        );
+      
+      // 等待中狀態 - 次要色圓點
+      case ActivityStatus.applicationPending:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.secondary900,
+        );
+      
+      // 結束狀態 - 灰色圓點
+      case ActivityStatus.ended:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.grey500,
+        );
+      
+      // 取消狀態 - 灰色圓點
+      case ActivityStatus.cancelled:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.grey500,
+        );
+    }
+  }
 }
 
 /// 狀態標籤建構器，提供常用的標籤樣式
 class StatusBadgeBuilder {
   /// 小尺寸標籤
   static Widget small(ActivityStatus status) {
-    return ActivityStatusBadge(
-      status: status,
-      fontSize: 10.0,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      borderRadius: 4.0,
-    );
+    return _SmallStatusBadge(status: status);
   }
 
   /// 中等尺寸標籤
   static Widget medium(ActivityStatus status) {
     return ActivityStatusBadge(
       status: status,
-      fontSize: 12.0,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      borderRadius: 6.0,
+      fontSize: 13.0,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      borderRadius: 24.0,
     );
   }
 
@@ -150,8 +259,8 @@ class StatusBadgeBuilder {
     return ActivityStatusBadge(
       status: status,
       fontSize: 14.0,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      borderRadius: 8.0,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      borderRadius: 24.0,
     );
   }
 }

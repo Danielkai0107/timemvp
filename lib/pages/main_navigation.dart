@@ -28,6 +28,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       _currentIndex = index;
     });
     
+    // 如果切換到「首頁」（index = 0），觸發自動重整
+    if (index == 0 && previousIndex != 0) {
+      debugPrint('切換到首頁，觸發自動重整');
+      // 使用 Future.delayed 確保頁面已經完全切換
+      Future.delayed(const Duration(milliseconds: 100), () {
+        HomePageController.refreshActivities();
+      });
+    }
+    
     // 如果切換到「我的活動」頁面（index = 1），觸發自動重整
     if (index == 1 && previousIndex != 1) {
       debugPrint('切換到我的活動頁面，觸發自動重整');

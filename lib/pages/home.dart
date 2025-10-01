@@ -18,23 +18,60 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+/// 全域的 HomePage 狀態控制器
+class HomePageController {
+  static _HomePageState? _currentState;
+  
+  static void _register(_HomePageState state) {
+    _currentState = state;
+  }
+  
+  static void _unregister() {
+    _currentState = null;
+  }
+  
+  /// 觸發重新載入活動數據
+  static void refreshActivities() {
+    _currentState?._refreshFromExternal();
+  }
+}
+
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final ActivityService _activityService = ActivityService();
   
   AuthUser? _currentUser;
   bool _isLoading = true;
-  List<Map<String, dynamic>> _activities = [];
+  List<Map<String, dynamic>> _eventActivities = [];
+  List<Map<String, dynamic>> _taskActivities = [];
   bool _isLoadingActivities = false;
   
-  int _selectedCustomTabIndex = 0; // 發布類型篩選索引
+  late TabController _tabController;
   int _selectedCategoryIndex = 0; // 分類篩選索引
 
   @override
   void initState() {
     super.initState();
+    
+    // 註冊到全域控制器
+    HomePageController._register(this);
+    
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _loadUserData();
     _loadActivities();
+  }
+
+  @override
+  void dispose() {
+    // 從全域控制器註銷
+    HomePageController._unregister();
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -91,13 +128,6 @@ class _HomePageState extends State<HomePage> {
     try {
       debugPrint('開始載入活動資料...');
       
-      // 根據選中的發布類型篩選
-      String? typeFilter;
-      final types = ['event', 'task']; // 活動、任務
-      if (_selectedCustomTabIndex >= 0 && _selectedCustomTabIndex < types.length) {
-        typeFilter = types[_selectedCustomTabIndex];
-      }
-      
       // 根據選中的分類獲取活動
       String? categoryFilter;
       if (_selectedCategoryIndex > 0) {
@@ -105,17 +135,25 @@ class _HomePageState extends State<HomePage> {
         categoryFilter = categories[_selectedCategoryIndex];
       }
       
-      final activities = await _activityService.getAllActivities(
-        type: typeFilter,
+      // 分別載入活動和任務
+      final eventActivities = await _activityService.getAllActivities(
+        type: 'event',
         category: categoryFilter,
         limit: 20,
       );
       
-      debugPrint('載入了 ${activities.length} 個活動');
+      final taskActivities = await _activityService.getAllActivities(
+        type: 'task',
+        category: categoryFilter,
+        limit: 20,
+      );
+      
+      debugPrint('載入了 ${eventActivities.length} 個活動，${taskActivities.length} 個任務');
       
       if (mounted) {
         setState(() {
-          _activities = activities;
+          _eventActivities = eventActivities;
+          _taskActivities = taskActivities;
         });
       }
     } catch (e) {
@@ -135,12 +173,60 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// 重整特定類型的活動
+  Future<void> _refreshActivities(String type) async {
+    try {
+      debugPrint('重整 $type 活動資料...');
+      
+      // 根據選中的分類獲取活動
+      String? categoryFilter;
+      if (_selectedCategoryIndex > 0) {
+        final categories = ['', 'EventCategory_language_teaching', 'EventCategory_skill_experience', 'EventCategory_event_support', 'EventCategory_life_service'];
+        categoryFilter = categories[_selectedCategoryIndex];
+      }
+      
+      final activities = await _activityService.getAllActivities(
+        type: type,
+        category: categoryFilter,
+        limit: 20,
+      );
+      
+      debugPrint('重整載入了 ${activities.length} 個 $type');
+      
+      if (mounted) {
+        setState(() {
+          if (type == 'event') {
+            _eventActivities = activities;
+          } else {
+            _taskActivities = activities;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('重整 $type 活動失敗: $e');
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '重整活動失敗: $e',
+        );
+      }
+    }
+  }
+
+  /// 從外部觸發的重整方法
+  Future<void> _refreshFromExternal() async {
+    debugPrint('=== 從外部觸發首頁重整 ===');
+    await _loadActivities();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(
+            color: AppColors.primary900,
+          ),
         ),
       );
     }
@@ -166,9 +252,15 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 12),
 
             
-            // 活動列表
+            // 活動列表（支持左右滑動）
             Expanded(
-              child: _buildActivityList(),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildActivityList(_eventActivities, 'event'),
+                  _buildActivityList(_taskActivities, 'task'),
+                ],
+              ),
             ),
           ],
         ),
@@ -315,12 +407,9 @@ class _HomePageState extends State<HomePage> {
     
     return TabsBuilder.basic(
       tabs: customTabItems,
-      initialIndex: _selectedCustomTabIndex,
+      controller: _tabController,
       onTabChanged: (index) {
-        setState(() {
-          _selectedCustomTabIndex = index;
-        });
-        _loadActivities(); // 發布類型改變時重新載入活動
+        // 這裡不需要手動切換，因為使用了外部 TabController
       },
     );
   }
@@ -342,29 +431,42 @@ class _HomePageState extends State<HomePage> {
   }
   
   // 活動列表
-  Widget _buildActivityList() {
+  Widget _buildActivityList(List<Map<String, dynamic>> activities, String type) {
     if (_isLoadingActivities) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: CircularProgressIndicator(
+          color: AppColors.primary900,
+        ),
       );
     }
 
-    if (_activities.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_busy,
-              size: 64,
-              color: Colors.grey,
-            ),
-            SizedBox(height: 16),
-            Text(
-              '目前沒有活動',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
+    if (activities.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () => _refreshActivities(type),
+        color: AppColors.primary900,
+        backgroundColor: Colors.white,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 200),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.event_busy,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    '目前沒有活動',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -372,31 +474,37 @@ class _HomePageState extends State<HomePage> {
       );
     }
     
-    return ListView.builder(
-      padding: EdgeInsets.zero,
-      itemCount: _activities.length,
-      itemBuilder: (context, index) {
-        final activity = _activities[index];
-        return ActivityCard(
-          title: activity['name'] ?? '',
-          date: _formatDate(activity['startDateTime']),
-          time: _formatTimeRange(activity['startDateTime'], activity['endDateTime']),
-          price: _formatPrice(activity['price']),
-          location: _getLocationText(activity),
-          imageUrl: _getActivityImageUrl(activity),
-          isPro: activity['price'] != null && activity['price'] > 0,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ActivityDetailPage(
-                  activityId: activity['id'] ?? '',
-                  activityData: activity,
+    return RefreshIndicator(
+      onRefresh: () => _refreshActivities(type),
+      color: AppColors.primary900,
+      backgroundColor: Colors.white,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: activities.length,
+        itemBuilder: (context, index) {
+          final activity = activities[index];
+          return ActivityCard(
+            title: activity['name'] ?? '',
+            date: _formatDate(activity['startDateTime']),
+            time: _formatTimeRange(activity['startDateTime'], activity['endDateTime']),
+            price: _formatPrice(activity['price']),
+            location: _getLocationText(activity),
+            imageUrl: _getActivityImageUrl(activity),
+            isPro: activity['price'] != null && activity['price'] > 0,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ActivityDetailPage(
+                    activityId: activity['id'] ?? '',
+                    activityData: activity,
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 

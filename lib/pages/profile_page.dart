@@ -105,33 +105,44 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text(
-          '個人資料',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            onPressed: _refreshUserData,
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            tooltip: '重新載入',
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshUserData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 標題區域
+            Container(
+              padding: const EdgeInsets.only(top: 20),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                child: Row(
+                  children: [
+                    const Text(
+                      '個人資料',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // 內容區域
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refreshUserData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
               // 用戶頭像和基本資訊
               Center(
                 child: Column(
@@ -176,7 +187,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               
               // 帳戶資訊區塊
               _buildSectionTitle('帳戶資訊'),
@@ -295,8 +306,12 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               
               const SizedBox(height: 24),
-            ],
-          ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

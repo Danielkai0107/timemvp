@@ -12,6 +12,7 @@ class CustomTabs extends StatefulWidget {
   final Color? dividerColor;
   final TextStyle? selectedLabelStyle;
   final TextStyle? unselectedLabelStyle;
+  final TabController? controller; // 新增外部 TabController 支持
 
   const CustomTabs({
     super.key,
@@ -25,6 +26,7 @@ class CustomTabs extends StatefulWidget {
     this.dividerColor,
     this.selectedLabelStyle,
     this.unselectedLabelStyle,
+    this.controller, // 新增外部 TabController 支持
   });
 
   @override
@@ -33,16 +35,21 @@ class CustomTabs extends StatefulWidget {
 
 class CustomTabsState extends State<CustomTabs>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _internalTabController;
+  TabController get _tabController => widget.controller ?? _internalTabController!;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: widget.tabs.length,
-      vsync: this,
-      initialIndex: widget.initialIndex,
-    );
+    
+    // 如果沒有外部 TabController，創建內部的
+    if (widget.controller == null) {
+      _internalTabController = TabController(
+        length: widget.tabs.length,
+        vsync: this,
+        initialIndex: widget.initialIndex,
+      );
+    }
 
     // 監聽 Tab 切換事件
     _tabController.addListener(() {
@@ -54,7 +61,7 @@ class CustomTabsState extends State<CustomTabs>
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _internalTabController?.dispose();
     super.dispose();
   }
 
@@ -167,11 +174,13 @@ class TabsBuilder {
     required List<TabItem> tabs,
     int initialIndex = 0,
     ValueChanged<int>? onTabChanged,
+    TabController? controller,
   }) {
     return CustomTabs(
       tabs: tabs,
       initialIndex: initialIndex,
       onTabChanged: onTabChanged,
+      controller: controller,
     );
   }
 

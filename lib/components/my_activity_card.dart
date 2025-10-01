@@ -57,7 +57,7 @@ class MyActivityCard extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: onStatusTap,
-                    child: StatusBadgeBuilder.medium(status),
+                    child: StatusBadgeBuilder.small(status),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
