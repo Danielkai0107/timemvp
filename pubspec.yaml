@@ -50,6 +50,9 @@ dependencies:
   
   # SVG support
   flutter_svg: ^2.0.10+1
+  
+  # YouTube player
+  youtube_player_flutter: ^9.0.3
 
 dev_dependencies:
   flutter_test:

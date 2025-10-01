@@ -26,7 +26,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
       ),
       child: SafeArea(
         child: Container(
-          height: 54,
+          height: 58,
           padding: const EdgeInsets.only(left: 12, right: 12, top: 0, bottom: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,

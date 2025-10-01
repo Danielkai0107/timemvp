@@ -104,6 +104,9 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
 
   /// 判斷標籤是否應該浮動到頂部
   bool get _shouldFloatLabel {
+    // 如果沒有標籤，不需要浮動
+    if (widget.label.isEmpty) return false;
+    
     if (widget.multiSelect) {
       return _selectedValues.isNotEmpty || _isFocused;
     }
@@ -236,7 +239,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      top: _shouldFloatLabel ? 26 : 20,
+                      top: widget.label.isEmpty ? 12 : (_shouldFloatLabel ? 26 : 20),
                       bottom: 8,
                     ),
                     child: Align(
@@ -256,7 +259,7 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
-                      top: _shouldFloatLabel ? 26 : 20,
+                      top: widget.label.isEmpty ? 12 : (_shouldFloatLabel ? 26 : 20),
                       bottom: 8,
                     ),
                     child: DropdownButtonHideUnderline(
@@ -305,23 +308,24 @@ class CustomDropdownState<T> extends State<CustomDropdown<T>> {
                     ),
                   ),
                 
-                // 浮動標籤
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  left: 16,
-                  top: _shouldFloatLabel ? 8 : 18,
-                  child: AnimatedDefaultTextStyle(
+                // 浮動標籤（只有在有標籤時才顯示）
+                if (widget.label.isNotEmpty)
+                  AnimatedPositioned(
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeInOut,
-                    style: TextStyle(
-                      color: _getLabelColor(),
-                      fontSize: _shouldFloatLabel ? 12 : 16,
-                      fontWeight: _shouldFloatLabel ? FontWeight.w500 : FontWeight.normal,
+                    left: 16,
+                    top: _shouldFloatLabel ? 8 : 18,
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      style: TextStyle(
+                        color: _getLabelColor(),
+                        fontSize: _shouldFloatLabel ? 12 : 16,
+                        fontWeight: _shouldFloatLabel ? FontWeight.w500 : FontWeight.normal,
+                      ),
+                      child: Text(widget.label),
                     ),
-                    child: Text(widget.label),
                   ),
-                ),
               ],
             ),
           ),

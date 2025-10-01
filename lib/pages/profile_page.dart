@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../components/design_system/app_colors.dart';
+import '../components/design_system/custom_snackbar.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import 'login_page.dart';
@@ -77,11 +78,9 @@ class _ProfilePageState extends State<ProfilePage> {
       _navigateToLogin();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('登出失敗: $e'),
-            backgroundColor: Colors.red,
-          ),
+        CustomSnackBar.showError(
+          context,
+          message: '登出失敗: $e',
         );
       }
     }
@@ -223,8 +222,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: '更新您的個人資訊',
                 onTap: () {
                   // TODO: 實作編輯個人資料功能
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('編輯個人資料功能即將推出')),
+                  CustomSnackBar.showInfo(
+                    context,
+                    message: '編輯個人資料功能即將推出',
                   );
                 },
               ),
@@ -235,8 +235,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: '管理您的通知偏好',
                 onTap: () {
                   // TODO: 實作通知設定功能
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('通知設定功能即將推出')),
+                  CustomSnackBar.showInfo(
+                    context,
+                    message: '通知設定功能即將推出',
                   );
                 },
               ),
@@ -247,8 +248,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: '管理您的隱私設定',
                 onTap: () {
                   // TODO: 實作隱私設定功能
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('隱私設定功能即將推出')),
+                  CustomSnackBar.showInfo(
+                    context,
+                    message: '隱私設定功能即將推出',
                   );
                 },
               ),
@@ -259,8 +261,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: '取得協助或回報問題',
                 onTap: () {
                   // TODO: 實作幫助功能
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('幫助功能即將推出')),
+                  CustomSnackBar.showInfo(
+                    context,
+                    message: '幫助功能即將推出',
                   );
                 },
               ),

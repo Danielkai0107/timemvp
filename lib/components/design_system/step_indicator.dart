@@ -33,27 +33,24 @@ class StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-      child: Row(
-        children: List.generate(totalSteps, (index) {
-          final stepNumber = index + 1;
-          final isActive = stepNumber <= currentStep;
-          
-          return Expanded(
-            child: Container(
-              height: height,
-              margin: EdgeInsets.only(
-                right: index < totalSteps - 1 ? spacing : 0,
-              ),
-              decoration: BoxDecoration(
-                color: isActive ? activeColor : inactiveColor,
-                borderRadius: BorderRadius.circular(height / 2),
-              ),
+    return Row(
+      children: List.generate(totalSteps, (index) {
+        final stepNumber = index + 1;
+        final isActive = stepNumber <= currentStep;
+        
+        return Expanded(
+          child: Container(
+            height: height,
+            margin: EdgeInsets.only(
+              right: index < totalSteps - 1 ? spacing : 0,
             ),
-          );
-        }),
-      ),
+            decoration: BoxDecoration(
+              color: isActive ? activeColor : inactiveColor,
+              borderRadius: BorderRadius.circular(height / 2),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

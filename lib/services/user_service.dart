@@ -54,6 +54,52 @@ class UserService {
       throw Exception('取得用戶文檔失敗：$e');
     }
   }
+
+  /// 獲取用戶基本資料（用於活動發布）
+  Future<Map<String, dynamic>> getUserBasicInfo(String uid) async {
+    try {
+      debugPrint('獲取用戶基本資料: $uid');
+      
+      final doc = await _firestore.collection('users').doc(uid).get();
+      
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          'id': uid,
+          'name': data['name'] ?? data['fullName'] ?? '用戶',
+          'email': data['email'],
+          'phone': data['phone'],
+          'avatar': data['avatar'] ?? data['profileImage'],
+          'status': 'approved',
+          'rating': '0.00',
+        };
+      } else {
+        // 如果用戶文檔不存在，返回基本資料
+        debugPrint('用戶文檔不存在，使用預設資料');
+        return {
+          'id': uid,
+          'name': '用戶',
+          'email': null,
+          'phone': null,
+          'avatar': null,
+          'status': 'approved',
+          'rating': '0.00',
+        };
+      }
+    } catch (e) {
+      debugPrint('獲取用戶基本資料失敗: $e');
+      // 發生錯誤時返回預設資料
+      return {
+        'id': uid,
+        'name': '用戶',
+        'email': null,
+        'phone': null,
+        'avatar': null,
+        'status': 'approved',
+        'rating': '0.00',
+      };
+    }
+  }
   
   /// 上傳檔案到Firebase Storage
   Future<List<String>> uploadFiles({

@@ -22,9 +22,20 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   ];
 
   void _onTabSelected(int index) {
+    final previousIndex = _currentIndex;
+    
     setState(() {
       _currentIndex = index;
     });
+    
+    // 如果切換到「我的活動」頁面（index = 1），觸發自動重整
+    if (index == 1 && previousIndex != 1) {
+      debugPrint('切換到我的活動頁面，觸發自動重整');
+      // 使用 Future.delayed 確保頁面已經完全切換
+      Future.delayed(const Duration(milliseconds: 100), () {
+        MyActivitiesPageController.refreshActivities();
+      });
+    }
   }
 
   @override

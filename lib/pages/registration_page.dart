@@ -7,11 +7,12 @@ import '../components/design_system/custom_button.dart';
 import '../components/design_system/step_indicator.dart';
 import '../components/design_system/photo_upload.dart';
 import '../components/design_system/app_colors.dart';
+import '../components/design_system/custom_snackbar.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/firestore_test.dart';
 import 'kyc_page.dart';
-import 'home.dart';
+import 'main_navigation.dart';
 
 /// 註冊頁面
 class RegistrationPage extends StatefulWidget {
@@ -291,16 +292,14 @@ class RegistrationPageState extends State<RegistrationPage> {
 
       if (mounted) {
         // 顯示成功訊息
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('註冊成功！歡迎使用 TimeApp'),
-            backgroundColor: AppColors.success900,
-          ),
+        CustomSnackBar.showSuccess(
+          context,
+          message: '註冊成功！歡迎使用 TimeApp',
         );
         
-        // 導向首頁
+        // 導向主導覽頁面（包含底部導覽列）
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const MainNavigationPage()),
           (route) => false,
         );
       }
@@ -328,19 +327,15 @@ class RegistrationPageState extends State<RegistrationPage> {
           );
           
           // 顯示提示訊息
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('此電子郵件已被註冊，請修改電子郵件或前往登入'),
-              backgroundColor: AppColors.error900,
-              duration: const Duration(seconds: 3),
-            ),
+          CustomSnackBar.showError(
+            context,
+            message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
+            duration: const Duration(seconds: 3),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('註冊失敗: $e'),
-              backgroundColor: AppColors.error900,
-            ),
+          CustomSnackBar.showError(
+            context,
+            message: '註冊失敗: $e',
           );
         }
       }
@@ -442,20 +437,16 @@ class RegistrationPageState extends State<RegistrationPage> {
           );
           
           // 顯示提示訊息
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('此電子郵件已被註冊，請修改電子郵件或前往登入'),
-              backgroundColor: AppColors.error900,
-              duration: const Duration(seconds: 3),
-            ),
+          CustomSnackBar.showError(
+            context,
+            message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
+            duration: const Duration(seconds: 3),
           );
         } else {
           // 其他錯誤
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('驗證失敗: $e'),
-              backgroundColor: AppColors.error900,
-            ),
+          CustomSnackBar.showError(
+            context,
+            message: '驗證失敗: $e',
           );
         }
       }
@@ -735,11 +726,9 @@ class RegistrationPageState extends State<RegistrationPage> {
           );
           
           // 顯示成功訊息
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('企業註冊資料提交成功，等待審核'),
-              backgroundColor: AppColors.success900,
-            ),
+          CustomSnackBar.showSuccess(
+            context,
+            message: '企業註冊資料提交成功，等待審核',
           );
         } else {
           // 個人註冊：顯示對話框（保持原有邏輯）
@@ -866,9 +855,9 @@ class RegistrationPageState extends State<RegistrationPage> {
   Future<void> _businessCompletionAndLogin() async {
     if (!mounted) return;
     
-    // 直接進入首頁（用戶已經登入狀態）
+    // 直接進入主導覽頁面（用戶已經登入狀態，包含底部導覽列）
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const HomePage()),
+      MaterialPageRoute(builder: (context) => const MainNavigationPage()),
       (route) => false,
     );
   }
@@ -1137,7 +1126,10 @@ class RegistrationPageState extends State<RegistrationPage> {
         onPhotosChanged([image.path]);
       }
     } catch (e) {
-      _showErrorDialog('選擇圖片失敗，請確認已授予相簿權限');
+      CustomSnackBar.showError(
+        context,
+        message: '選擇圖片失敗，請確認已授予相簿權限',
+      );
     }
   }
 
@@ -1154,7 +1146,10 @@ class RegistrationPageState extends State<RegistrationPage> {
         onPhotosChanged([image.path]);
       }
     } catch (e) {
-      _showErrorDialog('拍照失敗，請確認已授予相機權限');
+      CustomSnackBar.showError(
+        context,
+        message: '拍照失敗，請確認已授予相機權限',
+      );
     }
   }
 
@@ -1201,8 +1196,9 @@ class RegistrationPageState extends State<RegistrationPage> {
                       onPressed: () => Navigator.of(context).pop(),
                       text: '離開',
                       width: 80,
+                      height: 54,
                       style: CustomButtonStyle.info,
-                      borderRadius: 30.0,
+                      borderRadius: 40.0,
                     ),
                   ],
                 ),

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../components/design_system/app_colors.dart';
+import '../components/design_system/custom_tabs.dart';
+import '../components/design_system/custom_snackbar.dart';
 import '../components/category_tabs.dart';
 import '../components/activity_card.dart';
 import '../services/auth_service.dart';
+import '../services/activity_service.dart';
 import 'login_page.dart';
+import 'create_activity_page.dart';
+import 'activity_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,16 +20,21 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
+  final ActivityService _activityService = ActivityService();
   
   AuthUser? _currentUser;
   bool _isLoading = true;
+  List<Map<String, dynamic>> _activities = [];
+  bool _isLoadingActivities = false;
   
-  int _selectedCategoryIndex = 0;
+  int _selectedCustomTabIndex = 0; // 發布類型篩選索引
+  int _selectedCategoryIndex = 0; // 分類篩選索引
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadActivities();
   }
 
   Future<void> _loadUserData() async {
@@ -70,6 +80,61 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// 載入活動資料
+  Future<void> _loadActivities() async {
+    if (_isLoadingActivities) return;
+    
+    setState(() {
+      _isLoadingActivities = true;
+    });
+
+    try {
+      debugPrint('開始載入活動資料...');
+      
+      // 根據選中的發布類型篩選
+      String? typeFilter;
+      final types = ['event', 'task']; // 活動、任務
+      if (_selectedCustomTabIndex >= 0 && _selectedCustomTabIndex < types.length) {
+        typeFilter = types[_selectedCustomTabIndex];
+      }
+      
+      // 根據選中的分類獲取活動
+      String? categoryFilter;
+      if (_selectedCategoryIndex > 0) {
+        final categories = ['', 'EventCategory_language_teaching', 'EventCategory_skill_experience', 'EventCategory_event_support', 'EventCategory_life_service'];
+        categoryFilter = categories[_selectedCategoryIndex];
+      }
+      
+      final activities = await _activityService.getAllActivities(
+        type: typeFilter,
+        category: categoryFilter,
+        limit: 20,
+      );
+      
+      debugPrint('載入了 ${activities.length} 個活動');
+      
+      if (mounted) {
+        setState(() {
+          _activities = activities;
+        });
+      }
+    } catch (e) {
+      debugPrint('載入活動失敗: $e');
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '載入活動失敗: $e',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingActivities = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -88,12 +153,17 @@ class _HomePageState extends State<HomePage> {
             // 頂部搜尋、位置和日期時間區域
             _buildTopSection(),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            
+            // 發布類型標籤
+            _buildCustomTabs(),
+
+            const SizedBox(height: 24),
             
             // 分類標籤
             _buildCategoryTabs(),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
             
             // 活動列表
@@ -103,19 +173,43 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('新增活動功能即將推出')),
-          );
-        },
-        backgroundColor: AppColors.primary900,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-          size: 28,
+      
+      floatingActionButton: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.primary900,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(32),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const CreateActivityPage(),
+                ),
+              );
+            },
+            child: const Center(
+              child: Icon(
+                Icons.add_rounded,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+          ),
         ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -128,8 +222,9 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () {
         // TODO: 打開篩選 popup
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('篩選功能即將推出')),
+        CustomSnackBar.showInfo(
+          context,
+          message: '篩選功能即將推出',
         );
       },
       child: Container(
@@ -211,9 +306,28 @@ class _HomePageState extends State<HomePage> {
     );
   }
   
+  // 發布類型標籤
+  Widget _buildCustomTabs() {
+    final customTabItems = [
+      const TabItem(text: '找活動', icon: Icons.sports_bar_outlined),
+      const TabItem(text: '找任務', icon: Icons.work_outline_rounded),
+    ];
+    
+    return TabsBuilder.basic(
+      tabs: customTabItems,
+      initialIndex: _selectedCustomTabIndex,
+      onTabChanged: (index) {
+        setState(() {
+          _selectedCustomTabIndex = index;
+        });
+        _loadActivities(); // 發布類型改變時重新載入活動
+      },
+    );
+  }
+  
   // 分類標籤
   Widget _buildCategoryTabs() {
-    final categories = ['全部', '語言教學', '技能羅盤', '活動支援', '生活'];
+    final categories = ['全部', '語言教學', '技能羅盤', '活動支援', '生活服務'];
     
     return CategoryTabs(
       categories: categories,
@@ -222,72 +336,156 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _selectedCategoryIndex = index;
         });
+        _loadActivities(); // 分類改變時重新載入活動
       },
     );
   }
   
   // 活動列表
   Widget _buildActivityList() {
-    final activities = _getSampleActivities();
+    if (_isLoadingActivities) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_activities.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.event_busy,
+              size: 64,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 16),
+            Text(
+              '目前沒有活動',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     
     return ListView.builder(
       padding: EdgeInsets.zero,
-      itemCount: activities.length,
+      itemCount: _activities.length,
       itemBuilder: (context, index) {
-        final activity = activities[index];
+        final activity = _activities[index];
         return ActivityCard(
-          title: activity['title'],
-          date: activity['date'],
-          time: activity['time'],
-          price: activity['price'],
-          location: activity['location'],
-          isPro: activity['isPro'] ?? false,
+          title: activity['name'] ?? '',
+          date: _formatDate(activity['startDateTime']),
+          time: _formatTimeRange(activity['startDateTime'], activity['endDateTime']),
+          price: _formatPrice(activity['price']),
+          location: _getLocationText(activity),
+          imageUrl: _getActivityImageUrl(activity),
+          isPro: activity['price'] != null && activity['price'] > 0,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('點擊了活動: ${activity['title']}')),
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ActivityDetailPage(
+                  activityId: activity['id'] ?? '',
+                  activityData: activity,
+                ),
+              ),
             );
           },
         );
       },
     );
   }
-  
-  // 示例活動數據
-  List<Map<String, dynamic>> _getSampleActivities() {
-    return [
-      {
-        'title': '「台灣味！呷厲害」第一屆食農大會',
-        'date': '10/10 (六)',
-        'time': '9:00 - 12:00',
-        'price': '\$1,500 TWD',
-        'location': '台北市',
-        'isPro': true,
-      },
-      {
-        'title': '共讀時光｜打造專屬的親子攝影',
-        'date': '10/10 (六)',
-        'time': '12:00 - 16:00',
-        'price': '\$1,200 TWD',
-        'location': '台北市',
-        'isPro': true,
-      },
-      {
-        'title': '【免費線上講座】青少年的心聲，你聽見了嗎？',
-        'date': '10/10 (六)',
-        'time': '12:00 - 16:00',
-        'price': '免費｜線上',
-        'location': '',
-        'isPro': false,
-      },
-      {
-        'title': '孩子為什麼焦慮？理解青少年的壓力來源',
-        'date': '10/10 (六)',
-        'time': '12:00 - 16:00',
-        'price': '免費｜線上',
-        'location': '',
-        'isPro': false,
-      },
-    ];
+
+  /// 格式化日期顯示
+  String _formatDate(String? dateTimeString) {
+    if (dateTimeString == null) return '';
+    
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      final weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      final weekday = weekdays[dateTime.weekday % 7];
+      return '${dateTime.month}/${dateTime.day} ($weekday)';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// 格式化時間範圍顯示
+  String _formatTimeRange(String? startDateTimeString, String? endDateTimeString) {
+    if (startDateTimeString == null || endDateTimeString == null) return '';
+    
+    try {
+      final startDateTime = DateTime.parse(startDateTimeString);
+      final endDateTime = DateTime.parse(endDateTimeString);
+      
+      return '${startDateTime.hour.toString().padLeft(2, '0')}:${startDateTime.minute.toString().padLeft(2, '0')} - ${endDateTime.hour.toString().padLeft(2, '0')}:${endDateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// 格式化價格顯示
+  String _formatPrice(dynamic price) {
+    if (price == null || price == 0 || price < 50) {
+      return '免費';
+    }
+    
+    if (price is int) {
+      return '\$${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} TWD';
+    }
+    
+    return price.toString();
+  }
+
+  /// 獲取地點文字
+  String _getLocationText(Map<String, dynamic> activity) {
+    final isOnline = activity['isOnline'] ?? false;
+    if (isOnline) {
+      return '線上活動';
+    }
+    
+    final address = activity['address'] ?? '';
+    final city = activity['city'] ?? '';
+    final area = activity['area'] ?? '';
+    
+    if (address.isNotEmpty) {
+      if (city.isNotEmpty && area.isNotEmpty) {
+        return '$city$area';
+      } else {
+        return address;
+      }
+    }
+    
+    return '地點未提供';
+  }
+
+  /// 獲取活動圖片URL
+  String? _getActivityImageUrl(Map<String, dynamic> activity) {
+    debugPrint('檢查活動圖片: ${activity['name']}');
+    
+    // 優先使用 cover 欄位
+    if (activity['cover'] != null && activity['cover'].toString().isNotEmpty) {
+      debugPrint('使用 cover 圖片: ${activity['cover']}');
+      return activity['cover'];
+    }
+    
+    // 其次使用 files 陣列中的第一張圖片
+    if (activity['files'] != null && activity['files'] is List) {
+      final files = activity['files'] as List;
+      debugPrint('files 陣列長度: ${files.length}');
+      if (files.isNotEmpty && files.first is Map) {
+        final firstFile = files.first as Map<String, dynamic>;
+        debugPrint('使用 files 第一張圖片: ${firstFile['url']}');
+        return firstFile['url'];
+      }
+    }
+    
+    debugPrint('沒有找到圖片URL');
+    return null;
   }
 
 }

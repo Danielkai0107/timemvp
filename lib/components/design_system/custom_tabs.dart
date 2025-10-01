@@ -103,7 +103,7 @@ class CustomTabsState extends State<CustomTabs>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (tab.icon != null) ...[
-                      Icon(tab.icon, size: 18),
+                      Icon(tab.icon, size: 20),
                       const SizedBox(width: 8),
                     ],
                     Text(tab.text),

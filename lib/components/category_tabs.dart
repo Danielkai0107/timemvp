@@ -61,7 +61,7 @@ class _CategoryTabsState extends State<CategoryTabs> {
                   widget.categories[index],
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color:  AppColors.black,
                   ),
                 ),

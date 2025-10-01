@@ -6,9 +6,10 @@ import '../components/design_system/custom_dropdown.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/step_indicator.dart';
 import '../components/design_system/app_colors.dart';
+import '../components/design_system/custom_snackbar.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
-import 'home.dart';
+import 'main_navigation.dart';
 
 /// KYC 認證頁面
 /// 支援兩種模式：
@@ -152,9 +153,9 @@ class KycPageState extends State<KycPage> {
     
     try {
       if (widget.fromRegistration) {
-        // 註冊流程完成，導向首頁
+        // 註冊流程完成，導向主導覽頁面（包含底部導覽列）
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const MainNavigationPage()),
           (route) => false,
         );
       } else {
@@ -229,21 +230,17 @@ class KycPageState extends State<KycPage> {
         );
         
         // 顯示成功訊息
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('KYC 資料提交成功，等待審核'),
-            backgroundColor: AppColors.success900,
-          ),
+        CustomSnackBar.showSuccess(
+          context,
+          message: 'KYC 資料提交成功，等待審核',
         );
       }
     } catch (e) {
       debugPrint('KYC 提交失敗: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('提交失敗: $e'),
-            backgroundColor: AppColors.error900,
-          ),
+        CustomSnackBar.showError(
+          context,
+          message: '提交失敗: $e',
         );
       }
     } finally {
@@ -281,8 +278,9 @@ class KycPageState extends State<KycPage> {
                       onPressed: () => Navigator.of(context).pop(),
                       text: '離開',
                       width: 80,
+                      height: 54,
                       style: CustomButtonStyle.info,
-                      borderRadius: 30.0,
+                      borderRadius: 40.0,
                     ),
                   ],
                 ),

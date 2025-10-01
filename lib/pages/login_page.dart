@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../components/design_system/custom_text_input.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/terms_popup.dart';
+import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/app_colors.dart';
 import '../services/auth_service.dart';
 import 'registration_page.dart';
-import 'home.dart';
+import 'main_navigation.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -157,11 +158,9 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
       );
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('重設密碼郵件已發送，請檢查您的信箱'),
-            backgroundColor: Colors.green,
-          ),
+        CustomSnackBar.showSuccess(
+          context,
+          message: '重設密碼郵件已發送，請檢查您的信箱',
         );
       }
     } catch (e) {
@@ -224,19 +223,17 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
     final user = _authService.currentUser;
     final email = user?.email ?? user?.uid ?? '未知用戶';
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('登入成功！歡迎 $email'),
-        backgroundColor: Colors.green,
-      ),
+    CustomSnackBarBuilder.success(
+      context,
+      '登入成功！歡迎 $email',
     );
     
     debugPrint('登入成功，當前用戶: $email');
     
-    // 導航到首頁
+    // 導航到主導覽頁面
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const HomePage()),
+      MaterialPageRoute(builder: (context) => const MainNavigationPage()),
     );
   }
 
