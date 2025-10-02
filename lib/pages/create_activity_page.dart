@@ -22,10 +22,11 @@ class CreateActivityPage extends StatefulWidget {
   CreateActivityPageState createState() => CreateActivityPageState();
 }
 
-class CreateActivityPageState extends State<CreateActivityPage> {
+class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentStep = 1;
   final int _totalSteps = 8;
+  double _previousViewInsetsBottom = 0;
   
   // 服務實例
   final ActivityService _activityService = ActivityService();
@@ -60,6 +61,7 @@ class CreateActivityPageState extends State<CreateActivityPage> {
   String? _endDateError;
   String? _endTimeError;
   String? _addressError;
+  String? _youtubeUrlError;
   
   // 步驟五：描述內容
   final TextEditingController _youtubeUrlController = TextEditingController();
@@ -76,7 +78,18 @@ class CreateActivityPageState extends State<CreateActivityPage> {
   bool _isLoading = false;
   
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 初始化名額控制器
+    _participantsController.text = _maxParticipants.toString();
+    // 初始化價格控制器
+    _priceController.text = _price.toString();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _nameController.dispose();
     _locationController.dispose();
@@ -90,12 +103,33 @@ class CreateActivityPageState extends State<CreateActivityPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    // 初始化名額控制器
-    _participantsController.text = _maxParticipants.toString();
-    // 初始化價格控制器
-    _priceController.text = _price.toString();
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    
+    final currentViewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
+    
+    // 檢查鍵盤是否從顯示變為隱藏
+    if (_previousViewInsetsBottom > 0 && currentViewInsetsBottom == 0) {
+      // 鍵盤隱藏時強制取消所有焦點
+      _clearAllFocus();
+    }
+    
+    _previousViewInsetsBottom = currentViewInsetsBottom;
+  }
+
+  /// 強制清除所有焦點
+  void _clearAllFocus() {
+    // 立即取消焦點
+    FocusScope.of(context).unfocus();
+    
+    // 延遲再次確保焦點被清除
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        // 強制將焦點移到一個不可見的節點
+        FocusScope.of(context).requestFocus(FocusNode());
+      }
+    });
   }
 
   void _nextStep() {
@@ -201,6 +235,7 @@ class CreateActivityPageState extends State<CreateActivityPage> {
     if (url.trim().isEmpty) {
       _youtubePreviewController?.dispose();
       _youtubePreviewController = null;
+      _youtubeUrlError = null;
       return;
     }
 
@@ -217,16 +252,19 @@ class CreateActivityPageState extends State<CreateActivityPage> {
             captionLanguage: 'zh-TW',
           ),
         );
+        _youtubeUrlError = null; // 清除錯誤
         debugPrint('YouTube 預覽控制器初始化成功: $videoId');
       } else {
         debugPrint('無效的 YouTube URL: $url');
         _youtubePreviewController?.dispose();
         _youtubePreviewController = null;
+        _youtubeUrlError = '請輸入有效的 YouTube 影片連結';
       }
     } catch (e) {
       debugPrint('YouTube 預覽控制器初始化失敗: $e');
       _youtubePreviewController?.dispose();
       _youtubePreviewController = null;
+      _youtubeUrlError = '無效的 YouTube 連結格式';
     }
   }
 
@@ -263,45 +301,8 @@ class CreateActivityPageState extends State<CreateActivityPage> {
         ),
       );
     } else {
-      // 無效的 YouTube 連結，顯示錯誤提示
-      return Container(
-        width: double.infinity,
-        height: 120,
-        decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.shade200),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 32,
-                color: Colors.red.shade600,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '無效的 YouTube 連結',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.red.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '請輸入有效的 YouTube 影片連結',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.red.shade500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      // 無效的 YouTube 連結，不顯示任何內容
+      return const SizedBox.shrink();
     }
   }
 
@@ -338,46 +339,8 @@ class CreateActivityPageState extends State<CreateActivityPage> {
         ),
       );
     } else {
-      // 無效的 YouTube 連結，顯示簡化的錯誤提示
-      return Container(
-        width: double.infinity,
-        height: 200,
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.video_library_outlined,
-                size: 48,
-                color: Colors.grey.shade500,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'YouTube 影片無法載入',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '請檢查連結是否正確',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      // 無效的 YouTube 連結，不顯示任何內容
+      return const SizedBox.shrink();
     }
   }
 
@@ -1068,6 +1031,7 @@ class CreateActivityPageState extends State<CreateActivityPage> {
             CustomTextInput(
               label: 'Youtube 影片網址',
               controller: _youtubeUrlController,
+              errorText: _youtubeUrlError,
               onChanged: (value) {
                 if (mounted) {
                   _updateYoutubePreview(value);
@@ -1077,7 +1041,7 @@ class CreateActivityPageState extends State<CreateActivityPage> {
             ),
             
             // YouTube 預覽區域
-            if (_youtubeUrlController.text.isNotEmpty) ...[
+            if (_youtubeUrlController.text.isNotEmpty && _youtubePreviewController != null) ...[
               const SizedBox(height: 16),
               _buildYoutubePreview(),
             ],
@@ -1556,7 +1520,7 @@ class CreateActivityPageState extends State<CreateActivityPage> {
             _buildSectionHeader('活動介紹'),
             
             // YouTube 影片播放器
-            if (_youtubeUrlController.text.isNotEmpty) ...[
+            if (_youtubeUrlController.text.isNotEmpty && _youtubePreviewController != null) ...[
               _buildConfirmationYoutubePlayer(),
               const SizedBox(height: 12),
             ],

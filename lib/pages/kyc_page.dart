@@ -29,10 +29,11 @@ class KycPage extends StatefulWidget {
   KycPageState createState() => KycPageState();
 }
 
-class KycPageState extends State<KycPage> {
+class KycPageState extends State<KycPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentStep = 1;
   final int _totalSteps = 6;
+  double _previousViewInsetsBottom = 0;
   
   // 服務實例
   final AuthService _authService = AuthService();
@@ -56,7 +57,14 @@ class KycPageState extends State<KycPage> {
   bool _isLoading = false;
   
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+  
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _realNameController.dispose();
     _addressController.dispose();
@@ -64,6 +72,36 @@ class KycPageState extends State<KycPage> {
     _bankCodeController.dispose();
     _accountNumberController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    
+    final currentViewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
+    
+    // 檢查鍵盤是否從顯示變為隱藏
+    if (_previousViewInsetsBottom > 0 && currentViewInsetsBottom == 0) {
+      // 鍵盤隱藏時強制取消所有焦點
+      _clearAllFocus();
+    }
+    
+    _previousViewInsetsBottom = currentViewInsetsBottom;
+  }
+
+  /// 強制清除所有焦點
+  void _clearAllFocus() {
+    // 立即取消焦點
+    FocusScope.of(context).unfocus();
+    
+    // 延遲再次確保焦點被清除
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        // 強制將焦點移到一個不可見的節點
+        FocusScope.of(context).requestFocus(FocusNode());
+      }
+    });
   }
 
   void _nextStep() {

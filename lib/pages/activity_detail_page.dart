@@ -837,7 +837,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         onPressed: () => _showCancelPublishDialog(),
         text: '取消發布',
         width: 120,
-        height: 54,
+        height: 54.0,
         style: CustomButtonStyle.info,
         borderRadius: 40.0,
         fontSize: 16,
@@ -847,7 +847,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         onPressed: () => _showCancelRegistrationDialog(),
         text: '取消報名',
         width: 120,
-        height: 48,
+        height: 54.0,
         style: CustomButtonStyle.info,
         borderRadius: 40.0,
         fontSize: 16,
@@ -908,7 +908,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       },
       text: '查看報名狀況',
       width: double.infinity,
-      height: 60,
+      height: 54.0,
     );
   }
 
@@ -920,7 +920,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       },
       text: '顯示報到條碼',
       width: double.infinity,
-      height: 60,
+      height: 54.0,
     );
   }
 
@@ -929,7 +929,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     final priceText = _formatPrice(price);
     
     return Container(
-      height: 60,
+      height: 54.0,
       child: Row(
         children: [
           // 價格標籤和價格垂直排列
@@ -966,7 +966,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
             onPressed: () => _handleRegistration(),
             text: '立即報名',
             width: 140,
-            height: 60,
+            height: 54.0,
           ),
         ],
       ),

@@ -27,9 +27,10 @@ class RegistrationPage extends StatefulWidget {
   RegistrationPageState createState() => RegistrationPageState();
 }
 
-class RegistrationPageState extends State<RegistrationPage> {
+class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentStep = 1;
+  double _previousViewInsetsBottom = 0;
   
   // 服務實例
   final AuthService _authService = AuthService();
@@ -82,6 +83,7 @@ class RegistrationPageState extends State<RegistrationPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // 根據傳入的參數設置初始帳戶類型
     if (widget.isBusinessRegistration) {
       _selectedAccountType = 'business';
@@ -92,6 +94,7 @@ class RegistrationPageState extends State<RegistrationPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     
     // 個人帳戶控制器
@@ -114,6 +117,36 @@ class RegistrationPageState extends State<RegistrationPage> {
     _accountNumberController.dispose();
     
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    
+    final currentViewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
+    
+    // 檢查鍵盤是否從顯示變為隱藏
+    if (_previousViewInsetsBottom > 0 && currentViewInsetsBottom == 0) {
+      // 鍵盤隱藏時強制取消所有焦點
+      _clearAllFocus();
+    }
+    
+    _previousViewInsetsBottom = currentViewInsetsBottom;
+  }
+
+  /// 強制清除所有焦點
+  void _clearAllFocus() {
+    // 立即取消焦點
+    FocusScope.of(context).unfocus();
+    
+    // 延遲再次確保焦點被清除
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        // 強制將焦點移到一個不可見的節點
+        FocusScope.of(context).requestFocus(FocusNode());
+      }
+    });
   }
 
   void _nextStep() {

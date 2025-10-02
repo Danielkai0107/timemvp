@@ -471,7 +471,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
                   overlayColor: WidgetStateProperty.all(Colors.transparent),
                   padding: EdgeInsets.zero,
                   labelPadding: EdgeInsets.zero,
-                  dividerColor: AppColors.divider,
+                  dividerColor: AppColors.grey100,
                   indicator: UnderlineTabIndicator(
                     borderSide: BorderSide(
                       color: AppColors.black,
@@ -516,11 +516,11 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
             ),
           ),
           
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // 篩選區域
           _buildFilterSection(),
-          
+
           // 分頁內容
           Expanded(
             child: TabBarView(
@@ -710,11 +710,21 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
 
     return RefreshIndicator(
       onRefresh: _refreshActivities,
-      color: AppColors.primary900,
+      color: AppColors.primary900, 
       child: ListView.separated(
         padding: const EdgeInsets.only(top: 0, left: 0, right: 0, bottom: 90),
         itemCount: _filteredRegisteredActivities.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => Column(
+          children: [
+            const SizedBox(height: 24),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              height: 1,
+              color: AppColors.grey100,
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
         itemBuilder: (context, index) {
           final activityData = _filteredRegisteredActivities[index];
           return Padding(
@@ -832,7 +842,17 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       child: ListView.separated(
         padding: const EdgeInsets.only(top: 0, left: 0, right: 0, bottom: 90),
         itemCount: _filteredPublishedActivities.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => Column(
+          children: [
+            const SizedBox(height: 24),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              height: 1,
+              color: AppColors.grey100,
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
         itemBuilder: (context, index) {
           final activityData = _filteredPublishedActivities[index];
           return Padding(

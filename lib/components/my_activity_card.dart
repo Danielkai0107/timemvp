@@ -41,139 +41,104 @@ class MyActivityCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.grey300,
-            width: 1,
-          ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // 頂部：狀態標籤和活動類型
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: onStatusTap,
-                    child: StatusBadgeBuilder.small(status),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: activityType == 'event' 
-                          ? AppColors.primary100 
-                          : AppColors.secondary100,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      activityType == 'event' ? '活動' : '任務',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: activityType == 'event' 
-                            ? AppColors.primary900 
-                            : AppColors.secondary900,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // 主要內容區域
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 活動圖片
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: AppColors.grey100,
-                      image: imageUrl != null
-                          ? DecorationImage(
-                              image: NetworkImage(imageUrl!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: imageUrl == null
-                        ? Icon(
-                            activityType == 'event' ? Icons.event : Icons.work,
-                            color: AppColors.grey500,
-                            size: 28,
-                          )
-                        : null,
-                  ),
-
-                  const SizedBox(width: 12),
-                  
-                  // 活動資訊
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // 活動資訊
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 活動標題和活動類型
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // 活動標題
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        
-                        const SizedBox(height: 4),
-                        
-                        // 日期和時間
-                        Text(
-                          '$date $time',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 4),
-                        
-                        // 價格和地點
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                location.isNotEmpty ? '$price｜$location' : price,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
-                                  color: AppColors.textSecondary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
                             ),
-                            if (isPro) ...[
-                              const SizedBox(width: 8),
-                              SvgPicture.asset(
-                                'assets/images/pro-tag.svg',
-                                width: 32,
-                                height: 16,
-                              ),
-                            ],
-                          ],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: activityType == 'event' 
+                                  ? AppColors.primary300 
+                                  : AppColors.secondary300,
+                            ),
+                          ),
+                          child: Text(
+                            activityType == 'event' ? '活動' : '任務',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: activityType == 'event' 
+                                  ? AppColors.primary900 
+                                  : AppColors.secondary900,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    
+                    const SizedBox(height: 4),
+                    
+                    // 日期和時間
+                    Text(
+                      '$date $time',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    // 價格、地點和狀態標籤
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            location.isNotEmpty ? '$price｜$location' : price,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isPro) ...[
+                          const SizedBox(width: 8),
+                          SvgPicture.asset(
+                            'assets/images/pro-tag.svg',
+                            width: 32,
+                            height: 16,
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: onStatusTap,
+                          child: StatusBadgeBuilder.small(status),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
-          ),
         ),
       ),
     );
@@ -205,25 +170,31 @@ class MyActivityCardBuilder {
     
     debugPrint('狀態解析: $statusString -> ${status.displayName}');
     
-    // 解析日期時間 - 檢查多種可能的欄位名稱
-    String? startDate = activity['startDate'] as String? ?? 
-                       activity['date'] as String? ?? 
-                       activity['startDateTime'] as String?;
+    // 解析日期時間 - 優先處理 startDateTime
+    String? startDate;
+    String? startTime;
     
-    String? startTime = activity['startTime'] as String? ?? 
-                       activity['time'] as String?;
-    
-    // 如果 startDateTime 存在，嘗試從中提取日期和時間
-    if (startDate == null && activity['startDateTime'] != null) {
+    // 首先嘗試從 startDateTime 解析（這是主要的儲存格式）
+    if (activity['startDateTime'] != null) {
       try {
         final dateTime = DateTime.parse(activity['startDateTime']);
         startDate = dateTime.toIso8601String().split('T')[0];
-        if (startTime == null) {
-          startTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-        }
+        startTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+        debugPrint('從 startDateTime 解析成功: 日期=$startDate, 時間=$startTime');
       } catch (e) {
         debugPrint('解析 startDateTime 失敗: $e');
       }
+    }
+    
+    // 如果 startDateTime 解析失敗，嘗試其他欄位
+    if (startDate == null) {
+      startDate = activity['startDate'] as String? ?? 
+                 activity['date'] as String?;
+    }
+    
+    if (startTime == null) {
+      startTime = activity['startTime'] as String? ?? 
+                 activity['time'] as String?;
     }
     
     // 解析地點 - 檢查多種可能的欄位名稱
@@ -273,10 +244,37 @@ class MyActivityCardBuilder {
     final status = ActivityStatusUtils.fromString(statusString, activityType) 
         ?? (activityType == 'event' ? ActivityStatus.eventPublished : ActivityStatus.taskRecruiting);
     
+    // 解析日期時間 - 優先處理 startDateTime
+    String? startDate;
+    String? startTime;
+    
+    // 首先嘗試從 startDateTime 解析（這是主要的儲存格式）
+    if (activityData['startDateTime'] != null) {
+      try {
+        final dateTime = DateTime.parse(activityData['startDateTime']);
+        startDate = dateTime.toIso8601String().split('T')[0];
+        startTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+        debugPrint('發布活動從 startDateTime 解析成功: 日期=$startDate, 時間=$startTime');
+      } catch (e) {
+        debugPrint('發布活動解析 startDateTime 失敗: $e');
+      }
+    }
+    
+    // 如果 startDateTime 解析失敗，嘗試其他欄位
+    if (startDate == null) {
+      startDate = activityData['startDate'] as String? ?? 
+                 activityData['date'] as String?;
+    }
+    
+    if (startTime == null) {
+      startTime = activityData['startTime'] as String? ?? 
+                 activityData['time'] as String?;
+    }
+    
     return MyActivityCard(
       title: activityData['name'] as String? ?? '未知活動',
-      date: _formatDate(activityData['startDate'] as String?),
-      time: _formatTime(activityData['startTime'] as String?),
+      date: _formatDate(startDate),
+      time: _formatTime(startTime),
       price: _formatPrice(activityData['price']),
       location: activityData['location'] as String? ?? '',
       imageUrl: activityData['cover'] as String?,
@@ -294,8 +292,13 @@ class MyActivityCardBuilder {
     
     try {
       final date = DateTime.parse(dateString);
-      return '${date.month}/${date.day}';
+      final weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      final weekday = weekdays[date.weekday % 7];
+      final formattedDate = '${date.month}/${date.day} ($weekday)';
+      debugPrint('日期格式化: $dateString -> $formattedDate');
+      return formattedDate;
     } catch (e) {
+      debugPrint('日期格式化失敗: $dateString, 錯誤: $e');
       return dateString;
     }
   }

@@ -22,9 +22,6 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   bool _isLoading = false;
   bool _agreeToTerms = false;
   double _previousViewInsetsBottom = 0;
-  String? _emailError;
-  String? _passwordError;
-  String? _generalError;
 
   final AuthService _authService = AuthService();
 
@@ -50,11 +47,26 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
     
     // 檢查鍵盤是否從顯示變為隱藏
     if (_previousViewInsetsBottom > 0 && currentViewInsetsBottom == 0) {
-      // 鍵盤隱藏時取消所有焦點
-      FocusScope.of(context).unfocus();
+      // 鍵盤隱藏時強制取消所有焦點
+      _clearAllFocus();
     }
     
     _previousViewInsetsBottom = currentViewInsetsBottom;
+  }
+
+  /// 強制清除所有焦點
+  void _clearAllFocus() {
+    // 立即取消焦點
+    FocusScope.of(context).unfocus();
+    
+    // 延遲再次確保焦點被清除
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        // 強制將焦點移到一個不可見的節點
+        FocusScope.of(context).requestFocus(FocusNode());
+      }
+    });
   }
 
   // 處理登入按鈕點擊
@@ -98,9 +110,7 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
         debugPrint('登入成功: ${user.email}');
         _onLoginSuccess();
       } else {
-        setState(() {
-          _generalError = '登入失敗：無法獲取用戶資訊';
-        });
+        CustomSnackBar.showError(context, message: '登入失敗：無法獲取用戶資訊');
       }
     } catch (e) {
       debugPrint('登入錯誤: $e');
@@ -111,42 +121,35 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   }
 
   void _handleLoginError(String error) {
-    setState(() {
-      // 清除之前的錯誤訊息
-      _emailError = null;
-      _passwordError = null;
-      _generalError = null;
-      
-      // 根據錯誤類型設置相對應的錯誤訊息
-      if (error.contains('密碼錯誤') || error.contains('wrong-password')) {
-        _passwordError = '密碼錯誤';
-      } else if (error.contains('找不到此用戶帳號') || error.contains('user-not-found')) {
-        _emailError = '找不到此用戶帳號';
-      } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
-        _emailError = '電子郵件格式錯誤';
-      } else if (error.contains('此帳號已被停用') || error.contains('user-disabled')) {
-        _generalError = '此帳號已被停用';
-      } else if (error.contains('嘗試次數過多') || error.contains('too-many-requests')) {
-        _generalError = '嘗試次數過多，請稍後再試';
-      } else {
-        _generalError = '登入失敗：$error';
-      }
-    });
+    // 根據錯誤類型顯示相對應的錯誤訊息
+    String errorMessage;
+    if (error.contains('密碼錯誤') || error.contains('wrong-password')) {
+      errorMessage = '密碼錯誤';
+    } else if (error.contains('找不到此用戶帳號') || error.contains('user-not-found')) {
+      errorMessage = '找不到此用戶帳號';
+    } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
+      errorMessage = '電子郵件格式錯誤';
+    } else if (error.contains('此帳號已被停用') || error.contains('user-disabled')) {
+      errorMessage = '此帳號已被停用';
+    } else if (error.contains('嘗試次數過多') || error.contains('too-many-requests')) {
+      errorMessage = '嘗試次數過多，請稍後再試';
+    } else {
+      errorMessage = '登入失敗：$error';
+    }
+    
+    // 使用 CustomSnackBar 顯示錯誤訊息
+    CustomSnackBar.showError(context, message: errorMessage);
   }
 
   // 忘記密碼
   Future<void> _resetPassword() async {
     if (_emailController.text.trim().isEmpty) {
-      setState(() {
-        _emailError = '請先輸入電子信箱';
-      });
+      CustomSnackBar.showError(context, message: '請先輸入電子信箱');
       return;
     }
     
     if (!_emailController.text.contains('@')) {
-      setState(() {
-        _emailError = '請輸入有效的電子信箱格式';
-      });
+      CustomSnackBar.showError(context, message: '請輸入有效的電子信箱格式');
       return;
     }
 
@@ -171,50 +174,34 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   }
 
   void _handlePasswordResetError(String error) {
-    setState(() {
-      _generalError = null;
-      _passwordError = null;
-      
-      if (error.contains('找不到此電子郵件帳號') || error.contains('user-not-found')) {
-        _emailError = '找不到此電子郵件帳號';
-      } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
-        _emailError = '電子郵件格式錯誤';
-      } else {
-        _emailError = '發送失敗：$error';
-      }
-    });
+    String errorMessage;
+    if (error.contains('找不到此電子郵件帳號') || error.contains('user-not-found')) {
+      errorMessage = '找不到此電子郵件帳號';
+    } else if (error.contains('電子郵件格式錯誤') || error.contains('invalid-email')) {
+      errorMessage = '電子郵件格式錯誤';
+    } else {
+      errorMessage = '發送失敗：$error';
+    }
+    
+    // 使用 CustomSnackBar 顯示錯誤訊息
+    CustomSnackBar.showError(context, message: errorMessage);
   }
 
   bool _validateInputs() {
-    bool isValid = true;
-    
-    // 清除之前的錯誤訊息
-    setState(() {
-      _emailError = null;
-      _passwordError = null;
-      _generalError = null;
-    });
-    
     if (_emailController.text.trim().isEmpty) {
-      setState(() {
-        _emailError = '請輸入電子信箱';
-      });
-      isValid = false;
+      CustomSnackBar.showError(context, message: '請輸入電子信箱');
+      return false;
     } else if (!_emailController.text.contains('@')) {
-      setState(() {
-        _emailError = '請輸入有效的電子信箱格式';
-      });
-      isValid = false;
+      CustomSnackBar.showError(context, message: '請輸入有效的電子信箱格式');
+      return false;
     }
     
     if (_passwordController.text.isEmpty) {
-      setState(() {
-        _passwordError = '請輸入密碼';
-      });
-      isValid = false;
+      CustomSnackBar.showError(context, message: '請輸入密碼');
+      return false;
     }
     
-    return isValid;
+    return true;
   }
 
 
@@ -305,14 +292,6 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        errorText: _emailError,
-                        onChanged: (value) {
-                          if (_emailError != null) {
-                            setState(() {
-                              _emailError = null;
-                            });
-                          }
-                        },
                       ),
                       
                       const SizedBox(height: 4),
@@ -323,14 +302,6 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                         controller: _passwordController,
                         obscureText: true,
                         textInputAction: TextInputAction.done,
-                        errorText: _passwordError,
-                        onChanged: (value) {
-                          if (_passwordError != null) {
-                            setState(() {
-                              _passwordError = null;
-                            });
-                          }
-                        },
                       ),
                       
                       const SizedBox(height: 4),
@@ -433,31 +404,7 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                         ],
                       ),
                       
-                      const SizedBox(height: 4),
-                      
-                      // 通用錯誤訊息區域（始終預留空間）
-                      Container(
-                        width: double.infinity,
-                        height: _generalError != null ? null : 0, // 沒有錯誤時高度為0
-                        margin: const EdgeInsets.only(bottom: 16),
-                        child: _generalError != null 
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: AppColors.error100,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.error300),
-                              ),
-                              child: Text(
-                                _generalError!,
-                                style: const TextStyle(
-                                  color: AppColors.error900,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            )
-                          : null, // 沒有錯誤時不顯示內容，但保持容器結構
-                      ),
+                      const SizedBox(height: 20),
                       
                       // 登入按鈕
                       ButtonBuilder.primary(
@@ -482,9 +429,6 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                               onChanged: (value) {
                                 setState(() {
                                   _agreeToTerms = value ?? false;
-                                  if (_generalError != null) {
-                                    _generalError = null;
-                                  }
                                 });
                               },
                               activeColor: AppColors.primary900,
@@ -497,9 +441,6 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                             onTap: () {
                               setState(() {
                                 _agreeToTerms = !_agreeToTerms;
-                                if (_generalError != null) {
-                                  _generalError = null;
-                                }
                               });
                             },
                             child: const Text(

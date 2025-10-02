@@ -8,7 +8,7 @@ class CustomButton extends StatelessWidget {
     required this.onPressed,
     required this.text,
     this.width,
-    this.height = 60.0,
+    this.height = 54.0,
     this.borderRadius = 12.0,
     this.backgroundColor,
     this.textColor,
@@ -264,7 +264,7 @@ class ButtonBuilder {
     required VoidCallback? onPressed,
     required String text,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {
@@ -285,7 +285,7 @@ class ButtonBuilder {
     required VoidCallback? onPressed,
     required String text,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {
@@ -305,7 +305,7 @@ class ButtonBuilder {
     required VoidCallback? onPressed,
     required String text,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {
@@ -325,7 +325,7 @@ class ButtonBuilder {
     required VoidCallback? onPressed,
     required String text,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {
@@ -345,7 +345,7 @@ class ButtonBuilder {
     required VoidCallback? onPressed,
     required String text,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {
@@ -366,7 +366,7 @@ class ButtonBuilder {
     String text = '',
     Widget? icon,
     double? width,
-    double height = 60.0,
+    double height = 54.0,
     bool isLoading = false,
     bool isEnabled = true,
   }) {

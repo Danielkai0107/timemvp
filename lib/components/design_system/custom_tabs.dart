@@ -108,6 +108,7 @@ class CustomTabsState extends State<CustomTabs>
               (tab) => Tab(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (tab.icon != null) ...[
                       Icon(tab.icon, size: 20),

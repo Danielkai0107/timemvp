@@ -115,7 +115,7 @@ class StepNavigationButtons extends StatelessWidget {
           if (showPrevious)
             Expanded(
               child: Container(
-                height: 60,
+                height: 54,
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.circular(12),
@@ -148,7 +148,7 @@ class StepNavigationButtons extends StatelessWidget {
           if (showNext && !showSkip)
             Expanded(
               child: SizedBox(
-                height: 60,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: isNextEnabled && !isLoading ? onNext : null,
                   style: ElevatedButton.styleFrom(
@@ -185,7 +185,7 @@ class StepNavigationButtons extends StatelessWidget {
           if (showSkip)
             Expanded(
               child: SizedBox(
-                height: 60,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: onSkip,
                   style: ElevatedButton.styleFrom(

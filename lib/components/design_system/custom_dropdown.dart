@@ -520,7 +520,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
       );
       
       if (selectedIndex != -1 && _scrollController.hasClients) {
-        final itemHeight = 64.0; // ListTile 高度 (16*2 padding + 32 content)
+        final itemHeight = 48.0; // ListTile 高度 (8*2 padding + 32 content)
         final scrollPosition = selectedIndex * itemHeight;
         final maxScroll = _scrollController.position.maxScrollExtent;
         final viewportHeight = _scrollController.position.viewportDimension;
@@ -651,7 +651,7 @@ class SelectionDialogState<T> extends State<SelectionDialog<T>> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,
-                      vertical: 16,
+                      vertical: 8,
                     ),
                     title: Text(
                       item.label,
