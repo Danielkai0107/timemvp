@@ -12,7 +12,10 @@ import '../components/design_system/date_picker.dart';
 import '../components/design_system/time_picker.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../services/activity_service.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import 'main_navigation.dart';
+import 'kyc_page.dart';
 
 /// 發布活動頁面
 class CreateActivityPage extends StatefulWidget {
@@ -25,11 +28,19 @@ class CreateActivityPage extends StatefulWidget {
 class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentStep = 1;
-  final int _totalSteps = 8;
+  int _totalSteps = 8; // 動態調整步驟總數
   double _previousViewInsetsBottom = 0;
   
   // 服務實例
   final ActivityService _activityService = ActivityService();
+  final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
+  
+  // 用戶狀態
+  bool _isLoadingUserStatus = true;
+  bool _hasCompletedKyc = false;
+  bool _showProfitStep = true; // 是否顯示營利活動選擇步驟
+  bool _canEditPrice = false; // 是否可以編輯價格
   
   // 步驟一：營利活動確認
   bool? _isProfitActivity;
@@ -85,6 +96,8 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     _participantsController.text = _maxParticipants.toString();
     // 初始化價格控制器
     _priceController.text = _price.toString();
+    // 檢查用戶狀態
+    _checkUserStatus();
   }
 
   @override
@@ -132,6 +145,60 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     });
   }
 
+  /// 檢查用戶狀態（KYC 和帳號類型）
+  Future<void> _checkUserStatus() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        // 用戶未登入，使用預設設定
+        setState(() {
+          _isLoadingUserStatus = false;
+          _showProfitStep = true;
+          _canEditPrice = false;
+        });
+        return;
+      }
+
+      // 並行檢查 KYC 狀態和帳號類型
+      final futures = await Future.wait([
+        _userService.getUnifiedKycStatus(user.uid), // 使用統一的 KYC 狀態方法
+        _userService.getUserAccountType(user.uid),
+      ]);
+
+      final kycStatus = futures[0];
+      final accountType = futures[1];
+
+      debugPrint('用戶統一 KYC 狀態: $kycStatus');
+      debugPrint('用戶帳號類型: $accountType');
+
+      setState(() {
+        _isLoadingUserStatus = false;
+        _hasCompletedKyc = kycStatus == 'approved';
+        
+        // 決定是否顯示營利活動選擇步驟
+        if (_hasCompletedKyc) {
+          // 已完成 KYC 的用戶（個人或企業）：不顯示營利活動選擇，直接可編輯價格
+          _showProfitStep = false;
+          _canEditPrice = true;
+          _totalSteps = 7; // 減少一個步驟
+          _isProfitActivity = true; // 預設為營利活動
+        } else {
+          // 未完成 KYC 的用戶：顯示營利活動選擇步驟
+          _showProfitStep = true;
+          _canEditPrice = false; // 初始不可編輯，需要根據選擇決定
+          _totalSteps = 8; // 保持原有步驟數
+        }
+      });
+    } catch (e) {
+      debugPrint('檢查用戶狀態失敗: $e');
+      setState(() {
+        _isLoadingUserStatus = false;
+        _showProfitStep = true;
+        _canEditPrice = false;
+      });
+    }
+  }
+
   void _nextStep() {
     if (_currentStep < _totalSteps) {
       FocusScope.of(context).unfocus();
@@ -159,7 +226,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
   }
 
   // 驗證各步驟是否可以繼續
-  bool _canProceedFromStep1() => _isProfitActivity != null;
+  bool _canProceedFromStep1() => _showProfitStep ? (_isProfitActivity != null) : true;
   bool _canProceedFromStep2() => _activityType != null;
   bool _canProceedFromStep3() => _hostingMethod != null;
   bool _canProceedFromStep4() {
@@ -176,8 +243,11 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
   bool _canProceedFromStep7() => true; // 價格設定總是可以繼續
 
   VoidCallback? _getNextStepAction() {
-    switch (_currentStep) {
-      case 1: return _canProceedFromStep1() ? _nextStep : () => _showStep1Errors();
+    // 如果不顯示營利活動步驟，需要調整步驟編號
+    final adjustedStep = _showProfitStep ? _currentStep : _currentStep + 1;
+    
+    switch (adjustedStep) {
+      case 1: return _canProceedFromStep1() ? _handleStep1Next : () => _showStep1Errors();
       case 2: return _canProceedFromStep2() ? _nextStep : () => _showStep2Errors();
       case 3: return _canProceedFromStep3() ? _nextStep : () => _showStep3Errors();
       case 4: return _canProceedFromStep4() ? _nextStep : () => _showStep4Errors();
@@ -203,6 +273,73 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
 
       // 顯示錯誤提示
       CustomSnackBarBuilder.validationError(context, '請完成所有必填欄位');
+  }
+
+  /// 處理第一步的下一步邏輯
+  Future<void> _handleStep1Next() async {
+    if (!_showProfitStep) {
+      // 不顯示營利活動步驟，直接進入下一步
+      _nextStep();
+      return;
+    }
+
+    // 顯示營利活動步驟的處理
+    if (_isProfitActivity == null) {
+      _showStep1Errors();
+      return;
+    }
+
+    if (_isProfitActivity == true) {
+      // 選擇營利活動，需要檢查是否已完成 KYC
+      if (!_hasCompletedKyc) {
+        // 未完成 KYC，導向 KYC 流程
+        await _navigateToKyc();
+        return;
+      } else {
+        // 已完成 KYC，允許編輯價格並繼續
+        setState(() {
+          _canEditPrice = true;
+        });
+        _nextStep();
+      }
+    } else {
+      // 選擇非營利活動，不允許編輯價格
+      setState(() {
+        _canEditPrice = false;
+        _price = 0; // 設為免費
+        _priceController.text = '0';
+      });
+      _nextStep();
+    }
+  }
+
+  /// 導向 KYC 流程
+  Future<void> _navigateToKyc() async {
+    try {
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => const KycPage(fromRegistration: false),
+        ),
+      );
+
+      if (result == true) {
+        // KYC 完成，重新檢查用戶狀態
+        await _checkUserStatus();
+        if (_hasCompletedKyc) {
+          setState(() {
+            _canEditPrice = true;
+          });
+          _nextStep();
+        }
+      }
+      // 如果 result 為 null 或 false，用戶取消了 KYC，留在當前步驟
+    } catch (e) {
+      debugPrint('導向 KYC 流程失敗: $e');
+      CustomSnackBar.showError(
+        context,
+        message: '無法進入 KYC 認證流程',
+      );
+    }
   }
 
   /// 其他步驟的錯誤提醒
@@ -484,6 +621,27 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     }
   }
 
+  /// 根據用戶狀態構建步驟頁面列表
+  List<Widget> _buildStepPages() {
+    final pages = <Widget>[];
+    
+    if (_showProfitStep) {
+      pages.add(_buildStep1()); // 營利活動確認
+    }
+    
+    pages.addAll([
+      _buildStep2(), // 選擇發布類型
+      _buildStep3(), // 選擇舉辦方式
+      _buildStep4(), // 填寫基本資料
+      _buildStep5(), // 填寫描述內容
+      _buildStep6(), // 新增相片
+      _buildStep7(), // 設定價格
+      _buildStep8(), // 確認發布內容
+    ]);
+    
+    return pages;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -521,20 +679,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
               
               // 主要內容區域
               Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _buildStep1(), // 營利活動確認
-                    _buildStep2(), // 選擇發布類型
-                    _buildStep3(), // 選擇舉辦方式
-                    _buildStep4(), // 填寫基本資料
-                    _buildStep5(), // 填寫描述內容
-                    _buildStep6(), // 新增相片
-                    _buildStep7(), // 設定價格
-                    _buildStep8(), // 確認發布內容
-                  ],
-                ),
+                child: _isLoadingUserStatus
+                    ? const Center(child: CircularProgressIndicator())
+                    : PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: _buildStepPages(),
+                      ),
               ),
               
               // 底部步驟指示器
@@ -1249,11 +1400,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             
             const SizedBox(height: 24),
             
-            const Text(
-              '請輸入每人報名費用，盈利最低金額 50 TWD。',
+            Text(
+              _canEditPrice 
+                  ? '請輸入每人報名費用，盈利最低金額 50 TWD。'
+                  : '您選擇了非營利活動，因此活動費用固定為免費。',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.black,
+                color: _canEditPrice ? Colors.black : Colors.grey.shade600,
                 height: 1.5,
               ),
             ),
@@ -1264,7 +1417,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             Row(
               children: [
                 GestureDetector(
-                  onTap: () {
+                  onTap: _canEditPrice ? () {
                     setState(() {
                       if (_price > 50) {
                         // 大於50時，正常減1
@@ -1276,7 +1429,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                         _priceController.text = _price.toString();
                       }
                     });
-                  },
+                  } : null,
                   child: Container(
                     width: 50,
                     height: 50,
@@ -1287,7 +1440,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       child: Icon(
                         Icons.remove, 
                         size: 24,
-                        color: _price >= 50 ? Colors.grey : Colors.grey.shade300,
+                        color: (_canEditPrice && _price >= 50) ? Colors.grey : Colors.grey.shade300,
                       ),
                   ),
                 ),
@@ -1299,7 +1452,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                 ),
                 
                 GestureDetector(
-                  onTap: () {
+                  onTap: _canEditPrice ? () {
                     setState(() {
                       if (_price < 50) {
                         // 小於50時（免費狀態），加到50
@@ -1311,7 +1464,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                         _priceController.text = _price.toString();
                       }
                     });
-                  },
+                  } : null,
                   child: Container(
                     width: 50,
                     height: 50,
@@ -1319,10 +1472,10 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(25),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.add, 
                       size: 24,
-                      color: Colors.grey,
+                      color: _canEditPrice ? Colors.grey : Colors.grey.shade300,
                     ),
                   ),
                 ),
@@ -1899,7 +2052,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     // 顯示免費或價格
     if (_price < 50) {
       return GestureDetector(
-        onTap: () {
+        onTap: _canEditPrice ? () {
           // 點擊免費時，設置為50開始編輯
           setState(() {
             _price = 50;
@@ -1912,13 +2065,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
               extentOffset: _priceController.text.length,
             );
           });
-        },
-        child: const Text(
+        } : null,
+        child: Text(
           '免費',
           style: TextStyle(
             fontSize: 48,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: _canEditPrice ? Colors.black : Colors.grey.shade400,
           ),
         ),
       );
@@ -1940,10 +2093,11 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
           controller: _priceController,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          enabled: _canEditPrice,
+          style: TextStyle(
             fontSize: 48,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: _canEditPrice ? Colors.black : Colors.grey.shade400,
           ),
           decoration: const InputDecoration(
             border: InputBorder.none,
@@ -1991,84 +2145,6 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     }
   }
 
-  /// 處理價格輸入，自動調整到最近的50級距
-  int _adjustPriceToStep(int inputPrice) {
-    if (inputPrice <= 50) {
-      return 0; // 0-50顯示為免費
-    }
-    
-    if (inputPrice > 30000) {
-      return 30000; // 最高30000
-    }
-    
-    // 調整到最近的50級距
-    return ((inputPrice + 25) ~/ 50) * 50;
-  }
-
-  /// 獲取價格顯示文字
-  String _getPriceDisplayText() {
-    if (_price == 0) {
-      return '免費';
-    }
-    return '\$${_price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
-  }
-
-  /// 更新價格並同步控制器
-  void _updatePrice(int newPrice) {
-    setState(() {
-      _price = _adjustPriceToStep(newPrice);
-      _priceController.text = _price.toString();
-    });
-  }
-
-  /// 顯示價格編輯對話框
-  void _showPriceEditDialog() {
-    final TextEditingController tempController = TextEditingController(
-      text: _price.toString(),
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('設定價格'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: tempController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '金額 (TWD)',
-                border: OutlineInputBorder(),
-                helperText: '輸入 0-50 顯示免費，690 會調整為 700',
-              ),
-              onChanged: (value) {
-                // 即時預覽調整後的價格
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              final number = int.tryParse(tempController.text);
-              if (number != null && number >= 0) {
-                _updatePrice(number);
-              }
-              Navigator.of(context).pop();
-            },
-            child: const Text('確定'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 處理價格輸入，自動調整到最近的50級距
 }
 
 /// 步驟導航按鈕組件

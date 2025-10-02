@@ -188,4 +188,79 @@ class AuthService {
       throw Exception('登出失敗：${e.message}');
     }
   }
+
+  /// 刪除用戶帳號
+  Future<void> deleteAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('沒有用戶登入');
+      }
+      
+      debugPrint('開始刪除用戶帳號: ${user.uid}');
+      
+      // 刪除Firebase Authentication中的用戶帳號
+      await user.delete();
+      
+      _currentUser = null;
+      debugPrint('用戶帳號刪除成功');
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'requires-recent-login':
+          errorMessage = '為了安全考量，請重新登入後再嘗試刪除帳號';
+          break;
+        case 'user-not-found':
+          errorMessage = '找不到用戶帳號';
+          break;
+        default:
+          errorMessage = '刪除帳號失敗：${e.message}';
+      }
+      debugPrint('刪除帳號錯誤：$errorMessage');
+      throw Exception(errorMessage);
+    } catch (e) {
+      debugPrint('刪除帳號時發生未知錯誤: $e');
+      throw Exception('刪除帳號失敗：$e');
+    }
+  }
+
+  /// 重新驗證用戶（用於敏感操作前的驗證）
+  Future<void> reauthenticateUser({required String password}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null || user.email == null) {
+        throw Exception('沒有用戶登入');
+      }
+      
+      debugPrint('重新驗證用戶: ${user.email}');
+      
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+      debugPrint('用戶重新驗證成功');
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'wrong-password':
+          errorMessage = '密碼錯誤';
+          break;
+        case 'user-not-found':
+          errorMessage = '找不到用戶帳號';
+          break;
+        case 'invalid-email':
+          errorMessage = '電子郵件格式錯誤';
+          break;
+        case 'too-many-requests':
+          errorMessage = '嘗試次數過多，請稍後再試';
+          break;
+        default:
+          errorMessage = '驗證失敗：${e.message}';
+      }
+      debugPrint('重新驗證錯誤：$errorMessage');
+      throw Exception(errorMessage);
+    }
+  }
 }

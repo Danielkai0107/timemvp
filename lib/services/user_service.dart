@@ -161,6 +161,25 @@ class UserService {
     }
   }
 
+  /// 更新用戶資料
+  Future<void> updateUserData(String uid, Map<String, dynamic> updateData) async {
+    try {
+      debugPrint('更新用戶資料: $uid');
+      debugPrint('更新資料: $updateData');
+      
+      final data = {
+        ...updateData,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      
+      await _firestore.collection('users').doc(uid).update(data);
+      debugPrint('用戶資料更新成功');
+    } catch (e) {
+      debugPrint('更新用戶資料時發生錯誤: $e');
+      throw Exception('更新用戶資料失敗：$e');
+    }
+  }
+
   /// 更新用戶 KYC 資料
   Future<void> updateUserKyc(String uid, Map<String, dynamic> kycData) async {
     try {
@@ -192,5 +211,188 @@ class UserService {
       return null;
     }
   }
+
+  /// 取得用戶帳號類型
+  Future<String?> getUserAccountType(String uid) async {
+    try {
+      debugPrint('獲取用戶帳號類型: $uid');
+      
+      final doc = await getUserDocument(uid);
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        final accountType = data?['accountType'] as String?;
+        debugPrint('用戶帳號類型: $accountType');
+        return accountType;
+      } else {
+        debugPrint('用戶文檔不存在，無法獲取帳號類型');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('取得用戶帳號類型時發生錯誤: $e');
+      return null;
+    }
+  }
+
+  /// 取得企業 KYC 狀態
+  Future<String?> getBusinessKycStatus(String uid) async {
+    try {
+      debugPrint('獲取企業 KYC 狀態: $uid');
+      
+      final doc = await getUserDocument(uid);
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        final accountType = data?['accountType'] as String?;
+        
+        // 只有企業帳號才有 KYC 狀態
+        if (accountType == 'business') {
+          final businessKycStatus = data?['businessKycStatus'] as String?;
+          debugPrint('企業 KYC 狀態: $businessKycStatus');
+          return businessKycStatus ?? 'pending'; // 預設為待審核
+        } else {
+          debugPrint('非企業帳號，無企業 KYC 狀態');
+          return null;
+        }
+      } else {
+        debugPrint('用戶文檔不存在，無法獲取企業 KYC 狀態');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('取得企業 KYC 狀態時發生錯誤: $e');
+      return null;
+    }
+  }
+
+  /// 更新企業 KYC 狀態
+  Future<void> updateBusinessKycStatus(String uid, String status) async {
+    try {
+      debugPrint('更新企業 KYC 狀態: $uid -> $status');
+      
+      await _firestore.collection('users').doc(uid).update({
+        'businessKycStatus': status, // pending, approved, rejected
+        'businessKycUpdatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      debugPrint('企業 KYC 狀態更新成功');
+    } catch (e) {
+      debugPrint('更新企業 KYC 狀態時發生錯誤: $e');
+      throw Exception('更新企業 KYC 狀態失敗：$e');
+    }
+  }
+
+  /// 檢查用戶是否已完成 KYC（個人或企業）
+  Future<bool> hasCompletedKyc(String uid) async {
+    try {
+      final doc = await getUserDocument(uid);
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        final accountType = data?['accountType'] as String?;
+        
+        if (accountType == 'business') {
+          // 企業帳號檢查企業 KYC 狀態
+          final businessKycStatus = data?['businessKycStatus'] as String?;
+          return businessKycStatus == 'approved';
+        } else {
+          // 個人帳號檢查個人 KYC 狀態
+          final personalKycStatus = data?['kyc']?['kycStatus'] as String?;
+          return personalKycStatus == 'approved';
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('檢查 KYC 完成狀態時發生錯誤: $e');
+      return false;
+    }
+  }
+
+  /// 取得統一的 KYC 狀態（個人或企業）
+  Future<String?> getUnifiedKycStatus(String uid) async {
+    try {
+      final doc = await getUserDocument(uid);
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        final accountType = data?['accountType'] as String?;
+        
+        if (accountType == 'business') {
+          // 企業帳號返回企業 KYC 狀態
+          return data?['businessKycStatus'] as String? ?? 'pending';
+        } else {
+          // 個人帳號返回個人 KYC 狀態
+          return data?['kyc']?['kycStatus'] as String?;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('取得統一 KYC 狀態時發生錯誤: $e');
+      return null;
+    }
+  }
+
+  /// 刪除用戶所有數據（Firestore文檔和Storage文件）
+  Future<void> deleteUserData(String uid) async {
+    try {
+      debugPrint('開始刪除用戶數據: $uid');
+      
+      // 並行執行刪除操作
+      await Future.wait([
+        _deleteUserDocument(uid),
+        _deleteUserStorageFiles(uid),
+      ]);
+      
+      debugPrint('用戶數據刪除完成');
+    } catch (e) {
+      debugPrint('刪除用戶數據時發生錯誤: $e');
+      throw Exception('刪除用戶數據失敗：$e');
+    }
+  }
+
+  /// 刪除用戶Firestore文檔
+  Future<void> _deleteUserDocument(String uid) async {
+    try {
+      debugPrint('刪除Firestore用戶文檔: $uid');
+      
+      await _firestore.collection('users').doc(uid).delete();
+      
+      debugPrint('Firestore用戶文檔刪除成功');
+    } catch (e) {
+      debugPrint('刪除Firestore用戶文檔時發生錯誤: $e');
+      // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
+  /// 刪除用戶Storage文件
+  Future<void> _deleteUserStorageFiles(String uid) async {
+    try {
+      debugPrint('刪除Firebase Storage用戶文件: $uid');
+      
+      // 獲取用戶文件夾的引用
+      final userFolderRef = _storage.ref().child('users/$uid');
+      
+      // 列出所有文件
+      final listResult = await userFolderRef.listAll();
+      
+      // 刪除所有文件
+      final deleteFileTasks = listResult.items.map((item) => item.delete());
+      
+      // 遞歸刪除子文件夾
+      final deleteSubfolderTasks = listResult.prefixes.map((prefix) async {
+        final subListResult = await prefix.listAll();
+        final subDeleteTasks = subListResult.items.map((item) => item.delete());
+        await Future.wait(subDeleteTasks);
+      });
+      
+      // 等待所有刪除操作完成
+      await Future.wait([
+        ...deleteFileTasks,
+        ...deleteSubfolderTasks,
+      ]);
+      
+      debugPrint('Firebase Storage用戶文件刪除成功');
+    } catch (e) {
+      debugPrint('刪除Firebase Storage用戶文件時發生錯誤: $e');
+      // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'pages/login_page.dart';
 import 'pages/main_navigation.dart';
 import 'services/auth_service.dart';
@@ -70,50 +71,35 @@ class _AuthStateWidget extends StatefulWidget {
 
 class _AuthStateWidgetState extends State<_AuthStateWidget> {
   final AuthService _authService = AuthService();
-  bool _isInitialized = false;
-  bool _hasUser = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthState();
-  }
-
-  Future<void> _checkAuthState() async {
-    try {
-      // 檢查Firebase Auth的當前用戶狀態
-      final user = _authService.currentUser;
-      if (mounted) {
-        setState(() {
-          _hasUser = user != null;
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('檢查認證狀態時發生錯誤: $e');
-      if (mounted) {
-        setState(() {
-          _hasUser = false;
-          _isInitialized = true;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    // 顯示載入畫面直到認證狀態確定
-    if (!_isInitialized) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+    // 使用StreamBuilder來監聽Firebase Auth狀態變化
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // 顯示載入畫面
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-    // 根據認證狀態導航
-    return _hasUser ? const MainNavigationPage() : const LoginPage();
+        // 根據認證狀態導航
+        final hasUser = snapshot.hasData && snapshot.data != null;
+        
+        if (hasUser) {
+          debugPrint('用戶已登入: ${snapshot.data!.uid}');
+        } else {
+          debugPrint('當前沒有用戶登入');
+        }
+
+        return hasUser ? const MainNavigationPage() : const LoginPage();
+      },
+    );
   }
 }
 

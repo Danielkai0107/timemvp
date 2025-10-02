@@ -39,9 +39,9 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
   // 動態計算總步驟數
   int get _totalSteps {
     if (_selectedAccountType == 'business') {
-      return 9; // 企業帳戶流程：帳戶類型 → 聯絡人 → 企業資料 → 4個文件 → 密碼 → 完成頁面
+      return 8; // 企業帳戶流程：聯絡人 → 企業資料 → 4個文件 → 密碼 → 完成頁面
     } else {
-      return 5; // 個人帳戶流程：帳戶類型 → 基本資料 → 密碼 → 相片 → 實名制認證
+      return 4; // 個人帳戶流程：基本資料 → 密碼 → 相片 → 實名制認證
     }
   }
 
@@ -179,9 +179,6 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
     }
   }
 
-  bool _canProceedFromStep1() {
-    return _selectedAccountType != null;
-  }
 
   bool _canProceedFromStep2() {
     return _nameController.text.trim().isNotEmpty &&
@@ -248,26 +245,24 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
   // 動態獲取 PageView 的子頁面
   List<Widget> _getPageViewChildren() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：9步
+      // 企業帳戶流程：8步
       return [
-        _buildStep1(), // 1. 帳戶類型選擇
-        _buildBusinessContactStep(), // 2. 主要聯絡人資料
-        _buildBusinessInfoStep(), // 3. 企業資料
-        _buildBusinessRegistrationStep(), // 4. 商業登記書
-        _buildBankBookStep(), // 5. 帳戶存摺封面
-        _buildIdCardFrontStep(), // 6. 身分證正面
-        _buildIdCardBackStep(), // 7. 身分證背面
-        _buildStep3(), // 8. 密碼設定
-        _buildBusinessCompletionStep(), // 9. 完成頁面
+        _buildBusinessContactStep(), // 1. 主要聯絡人資料
+        _buildBusinessInfoStep(), // 2. 企業資料
+        _buildBusinessRegistrationStep(), // 3. 商業登記書
+        _buildBankBookStep(), // 4. 帳戶存摺封面
+        _buildIdCardFrontStep(), // 5. 身分證正面
+        _buildIdCardBackStep(), // 6. 身分證背面
+        _buildStep3(), // 7. 密碼設定
+        _buildBusinessCompletionStep(), // 8. 完成頁面
       ];
     } else {
-      // 個人帳戶流程：5步
+      // 個人帳戶流程：4步
       return [
-        _buildStep1(), // 1. 帳戶類型選擇
-        _buildStep2(), // 2. 基本資料
-        _buildStep3(), // 3. 密碼設定
-        _buildStep4(), // 4. 相片上傳
-        _buildStep5(), // 5. 實名制認證
+        _buildStep2(), // 1. 基本資料
+        _buildStep3(), // 2. 密碼設定
+        _buildStep4(), // 3. 相片上傳
+        _buildStep5(), // 4. 實名制認證
       ];
     }
   }
@@ -313,6 +308,9 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           'bankBookCover': _bankBookCover,
           'idCardFrontDocs': _idCardFront,
           'idCardBackDocs': _idCardBack,
+          // 企業 KYC 狀態
+          'businessKycStatus': 'pending', // pending, approved, rejected
+          'businessKycSubmittedAt': DateTime.now().toIso8601String(),
         });
       }
       
@@ -348,13 +346,13 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
             _emailError = '此電子郵件已被註冊';
           });
           
-          // 返回到第2步（填寫個人資料，包含 email）
+          // 返回到第1步（填寫個人資料，包含 email）
           setState(() {
-            _currentStep = 2;
+            _currentStep = 1;
           });
           
           _pageController.animateToPage(
-            1, // 第2步的 index (0-based)
+            0, // 第1步的 index (0-based)
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
@@ -426,6 +424,9 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           'bankBookCover': _bankBookCover,
           'idCardFrontDocs': _idCardFront,
           'idCardBackDocs': _idCardBack,
+          // 企業 KYC 狀態
+          'businessKycStatus': 'pending', // pending, approved, rejected
+          'businessKycSubmittedAt': DateTime.now().toIso8601String(),
         });
       }
       
@@ -458,13 +459,13 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
             _emailError = '此電子郵件已被註冊';
           });
           
-          // 返回到第2步（填寫個人資料，包含 email）
+          // 返回到第1步（填寫個人資料，包含 email）
           setState(() {
-            _currentStep = 2;
+            _currentStep = 1;
           });
           
           _pageController.animateToPage(
-            1, // 第2步的 index (0-based)
+            0, // 第1步的 index (0-based)
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
@@ -574,7 +575,7 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
                       Navigator.of(context).pop();
                       // 導航回到對應的電子郵件輸入步驟
                       if (mounted) {
-                        final targetStep = _selectedAccountType == 'business' ? 3 : 2; // 企業帳戶回到第3步（企業資料），個人帳戶回到第2步（基本資料）
+                        final targetStep = _selectedAccountType == 'business' ? 2 : 1; // 企業帳戶回到第2步（企業資料），個人帳戶回到第1步（基本資料）
                         setState(() {
                           _currentStep = targetStep;
                         });
@@ -631,6 +632,9 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           'accountHolder': _accountHolderController.text.trim(),
           'bankCode': _bankCodeController.text.trim(),
           'accountNumber': _accountNumberController.text.trim(),
+          // 企業 KYC 狀態
+          'businessKycStatus': 'pending', // pending, approved, rejected
+          'businessKycSubmittedAt': DateTime.now().toIso8601String(),
         });
 
         // 上傳企業文件
@@ -747,13 +751,13 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         Navigator.of(context).pop();
 
         if (_selectedAccountType == 'business') {
-          // 企業註冊：進入第9步完成頁面
+          // 企業註冊：進入第8步完成頁面
           setState(() {
-            _currentStep = 9;
+            _currentStep = 8;
           });
           
           _pageController.animateToPage(
-            8, // 第9步的 index (0-based)
+            7, // 第8步的 index (0-based)
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
           );
@@ -1186,23 +1190,6 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
     }
   }
 
-  // 顯示錯誤對話框
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // 禁止點擊遮罩關閉對話框
-      builder: (context) => AlertDialog(
-        title: const Text('錯誤'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('確定'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1248,23 +1235,23 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
                 ),
               ),
               
-              // 底部步驟指示器（企業第9步隱藏）
-              if (!(_selectedAccountType == 'business' && _currentStep == 9))
+              // 底部步驟指示器（企業第8步隱藏）
+              if (!(_selectedAccountType == 'business' && _currentStep == 8))
                 StepIndicator(
                   currentStep: _currentStep,
                   totalSteps: _totalSteps,
                 ),
               
-              // 導航按鈕（企業第9步隱藏）
-              if (!(_selectedAccountType == 'business' && _currentStep == 9))
+              // 導航按鈕（企業第8步隱藏）
+              if (!(_selectedAccountType == 'business' && _currentStep == 8))
                 StepNavigationButtons(
                 onPrevious: _currentStep > 1 ? _previousStep : null,
                 onNext: _getNextStepAction(),
-                onSkip: (_selectedAccountType == 'personal' && _currentStep == 5) 
+                onSkip: (_selectedAccountType == 'personal' && _currentStep == 4) 
                     ? _skipVerificationAndLogin : null,
                 showPrevious: _currentStep > 1,
-                showNext: !(_selectedAccountType == 'personal' && _currentStep == 5),
-                showSkip: _selectedAccountType == 'personal' && _currentStep == 5,
+                showNext: !(_selectedAccountType == 'personal' && _currentStep == 4),
+                showSkip: _selectedAccountType == 'personal' && _currentStep == 4,
                 previousText: '上一步',
                 nextText: _getNextButtonText(),
                 skipText: '略過',
@@ -1278,64 +1265,6 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
     );
   }
 
-  Widget _buildStep1() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 標題
-            const Text(
-              '選擇你的帳戶類型',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // 說明文字
-            const Text(
-              '請選擇適合您的帳戶類型，這將影響您可使用的功能',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black,
-                height: 1.5,
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // 帳戶類型選擇
-            DropdownBuilder.dialog<String>(
-              label: '帳戶類型',
-              dialogTitle: '選擇帳戶類型',
-              value: _selectedAccountType,
-              onChanged: (value) {
-                // 自動關閉鍵盤
-                FocusScope.of(context).unfocus();
-                
-                if (mounted) {
-                  setState(() {
-                    _selectedAccountType = value;
-                  });
-                }
-              },
-              items: const [
-                DropdownItem(value: 'personal', label: '個人帳戶'),
-                DropdownItem(value: 'business', label: '企業帳戶'),
-              ],
-            ),
-            
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildStep2() {
     return Padding(
@@ -1887,27 +1816,25 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
 
   VoidCallback? _getNextStepAction() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：9步
+      // 企業帳戶流程：8步
       switch (_currentStep) {
-        case 1: return _canProceedFromStep1() ? _nextStep : null;
-        case 2: return _canProceedFromBusinessContactStep() ? _nextStep : null;
-        case 3: return _canProceedFromBusinessInfoStep() ? _nextStep : null;
-        case 4: return _canProceedFromBusinessRegistrationStep() ? _nextStep : null;
-        case 5: return _canProceedFromBankBookStep() ? _nextStep : null;
-        case 6: return _canProceedFromIdCardFrontStep() ? _nextStep : null;
-        case 7: return _canProceedFromIdCardBackStep() ? _nextStep : null;
-        case 8: return _canProceedFromStep3() ? () => _saveUserData(isVerified: false) : null; // 密碼設定後進入完成頁面
-        case 9: return null; // 第9步有自己的按鈕
+        case 1: return _canProceedFromBusinessContactStep() ? _nextStep : null;
+        case 2: return _canProceedFromBusinessInfoStep() ? _nextStep : null;
+        case 3: return _canProceedFromBusinessRegistrationStep() ? _nextStep : null;
+        case 4: return _canProceedFromBankBookStep() ? _nextStep : null;
+        case 5: return _canProceedFromIdCardFrontStep() ? _nextStep : null;
+        case 6: return _canProceedFromIdCardBackStep() ? _nextStep : null;
+        case 7: return _canProceedFromStep3() ? () => _saveUserData(isVerified: false) : null; // 密碼設定後進入完成頁面
+        case 8: return null; // 第8步有自己的按鈕
         default: return null;
       }
     } else {
-      // 個人帳戶流程：5步
+      // 個人帳戶流程：4步
       switch (_currentStep) {
-        case 1: return _canProceedFromStep1() ? _nextStep : null;
-        case 2: return _canProceedFromStep2() ? _nextStep : null;
-        case 3: return _canProceedFromStep3() ? _nextStep : null;
-        case 4: return _canProceedFromStep4() ? _nextStep : null;
-        case 5: return _goToVerification; // 進行認證（可選）
+        case 1: return _canProceedFromStep2() ? _nextStep : null;
+        case 2: return _canProceedFromStep3() ? _nextStep : null;
+        case 3: return _canProceedFromStep4() ? _nextStep : null;
+        case 4: return _goToVerification; // 進行認證（可選）
         default: return null;
       }
     }
@@ -1916,10 +1843,10 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
 
   String _getNextButtonText() {
     if (_selectedAccountType == 'business') {
-      return _currentStep == 8 ? '提交註冊' : '下一步';
+      return _currentStep == 7 ? '提交註冊' : '下一步';
     } else {
-      if (_currentStep == 5) {
-        return '確認前往'; // 第5步確認進入認證流程
+      if (_currentStep == 4) {
+        return '確認前往'; // 第4步確認進入認證流程
       } else {
         return '下一步';
       }
@@ -1928,27 +1855,25 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
 
   bool _getNextButtonEnabled() {
     if (_selectedAccountType == 'business') {
-      // 企業帳戶流程：9步
+      // 企業帳戶流程：8步
       switch (_currentStep) {
-        case 1: return _canProceedFromStep1();
-        case 2: return _canProceedFromBusinessContactStep();
-        case 3: return _canProceedFromBusinessInfoStep();
-        case 4: return _canProceedFromBusinessRegistrationStep();
-        case 5: return _canProceedFromBankBookStep();
-        case 6: return _canProceedFromIdCardFrontStep();
-        case 7: return _canProceedFromIdCardBackStep();
-        case 8: return _canProceedFromStep3(); // 密碼設定
-        case 9: return true; // 完成頁面
+        case 1: return _canProceedFromBusinessContactStep();
+        case 2: return _canProceedFromBusinessInfoStep();
+        case 3: return _canProceedFromBusinessRegistrationStep();
+        case 4: return _canProceedFromBankBookStep();
+        case 5: return _canProceedFromIdCardFrontStep();
+        case 6: return _canProceedFromIdCardBackStep();
+        case 7: return _canProceedFromStep3(); // 密碼設定
+        case 8: return true; // 完成頁面
         default: return false;
       }
     } else {
-      // 個人帳戶流程：5步
+      // 個人帳戶流程：4步
       switch (_currentStep) {
-        case 1: return _canProceedFromStep1();
-        case 2: return _canProceedFromStep2();
-        case 3: return _canProceedFromStep3();
-        case 4: return _canProceedFromStep4();
-        case 5: return true; // 實名制認證
+        case 1: return _canProceedFromStep2();
+        case 2: return _canProceedFromStep3();
+        case 3: return _canProceedFromStep4();
+        case 4: return true; // 實名制認證
         default: return false;
       }
     }

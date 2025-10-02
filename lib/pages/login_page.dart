@@ -3,8 +3,10 @@ import '../components/design_system/custom_text_input.dart';
 import '../components/design_system/custom_button.dart';
 import '../components/design_system/terms_popup.dart';
 import '../components/design_system/custom_snackbar.dart';
+import '../components/design_system/custom_tabs.dart';
 import '../components/design_system/app_colors.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import 'registration_page.dart';
 import 'main_navigation.dart';
 
@@ -22,8 +24,10 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   bool _isLoading = false;
   bool _agreeToTerms = false;
   double _previousViewInsetsBottom = 0;
+  int _selectedAccountTypeIndex = 0; // 0: 個人, 1: 企業
 
   final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
 
   @override
   void initState() {
@@ -108,6 +112,15 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
       
       if (user != null) {
         debugPrint('登入成功: ${user.email}');
+        
+        // 驗證帳號類型
+        final isAccountTypeValid = await _validateAccountType(user.uid);
+        if (!isAccountTypeValid) {
+          // 帳號類型不匹配，登出用戶
+          await _authService.signOut();
+          return;
+        }
+        
         _onLoginSuccess();
       } else {
         CustomSnackBar.showError(context, message: '登入失敗：無法獲取用戶資訊');
@@ -204,6 +217,48 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
     return true;
   }
 
+  /// 驗證用戶帳號類型是否與選擇的類型匹配
+  Future<bool> _validateAccountType(String uid) async {
+    try {
+      // 獲取用戶的實際帳號類型
+      final userAccountType = await _userService.getUserAccountType(uid);
+      
+      // 將選擇的索引轉換為帳號類型字串
+      final selectedAccountType = _selectedAccountTypeIndex == 0 ? 'personal' : 'business';
+      
+      debugPrint('選擇的帳號類型: $selectedAccountType');
+      debugPrint('用戶實際帳號類型: $userAccountType');
+      
+      // 如果用戶資料中沒有帳號類型資訊，允許登入（向後兼容）
+      if (userAccountType == null) {
+        debugPrint('用戶帳號類型資訊不存在，允許登入');
+        return true;
+      }
+      
+      // 檢查帳號類型是否匹配
+      if (userAccountType == selectedAccountType) {
+        debugPrint('帳號類型匹配，允許登入');
+        return true;
+      } else {
+        // 帳號類型不匹配，顯示錯誤訊息
+        final selectedTypeText = _selectedAccountTypeIndex == 0 ? '個人' : '企業';
+        final userTypeText = userAccountType == 'personal' ? '個人' : '企業';
+        
+        CustomSnackBar.showError(
+          context, 
+          message: '帳號類型不匹配：您選擇了${selectedTypeText}帳號，但此帳戶為${userTypeText}帳號'
+        );
+        
+        debugPrint('帳號類型不匹配，拒絕登入');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('驗證帳號類型時發生錯誤: $e');
+      // 發生錯誤時允許登入（避免阻擋正常用戶）
+      return true;
+    }
+  }
+
 
   void _onLoginSuccess() {
     // 導航到首頁
@@ -256,7 +311,7 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
               Container(
                 width: 200,
                 height: 95,
-                margin: const EdgeInsets.only(bottom: 40),
+                margin: const EdgeInsets.only(bottom: 24),
                 decoration: BoxDecoration(
                   // color: const Color(0xFFFFBE0A),
                   borderRadius: BorderRadius.circular(8),
@@ -279,6 +334,19 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                       );
                     },
                   ),
+                ),
+              ),
+              
+              // 帳戶類型選擇 Tabs
+              Container(
+                margin: const EdgeInsets.only(bottom: 40),
+                child: TabsBuilder.personalBusiness(
+                  initialIndex: _selectedAccountTypeIndex,
+                  onTabChanged: (index) {
+                    setState(() {
+                      _selectedAccountTypeIndex = index;
+                    });
+                  },
                 ),
               ),
               
@@ -378,8 +446,8 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => const RegistrationPage(
-                                    isBusinessRegistration: false,
+                                  builder: (context) => RegistrationPage(
+                                    isBusinessRegistration: _selectedAccountTypeIndex == 1,
                                   ),
                                 ),
                               );

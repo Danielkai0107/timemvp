@@ -4,6 +4,8 @@ import '../components/design_system/custom_snackbar.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import 'login_page.dart';
+import 'kyc_page.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,6 +20,8 @@ class _ProfilePageState extends State<ProfilePage> {
   
   AuthUser? _currentUser;
   Map<String, dynamic>? _userData;
+  String? _kycStatus;
+  String? _accountType;
   bool _isLoading = true;
 
   @override
@@ -31,23 +35,29 @@ class _ProfilePageState extends State<ProfilePage> {
       _currentUser = _authService.currentUser;
       if (_currentUser != null) {
         debugPrint('載入用戶資料: ${_currentUser!.uid}');
-        final doc = await _userService.getUserDocument(_currentUser!.uid);
-        if (doc.exists && doc.data() != null) {
-          if (mounted) {
-            setState(() {
+        
+        // 並行載入用戶資料、KYC 狀態和帳號類型
+        final futures = await Future.wait([
+          _userService.getUserDocument(_currentUser!.uid),
+          _userService.getUnifiedKycStatus(_currentUser!.uid), // 使用統一的 KYC 狀態方法
+          _userService.getUserAccountType(_currentUser!.uid),
+        ]);
+        
+        final doc = futures[0] as dynamic;
+        final kycStatus = futures[1] as String?;
+        final accountType = futures[2] as String?;
+        
+        if (mounted) {
+          setState(() {
+            if (doc?.exists == true && doc?.data() != null) {
               _userData = doc.data() as Map<String, dynamic>;
-              _isLoading = false;
-            });
-          }
-          debugPrint('用戶資料載入成功');
-        } else {
-          debugPrint('用戶文檔不存在或為空');
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
+            }
+            _kycStatus = kycStatus;
+            _accountType = accountType;
+            _isLoading = false;
+          });
         }
+        debugPrint('用戶資料載入成功 - KYC狀態: $kycStatus, 帳號類型: $accountType');
       } else {
         if (mounted) {
           setState(() {
@@ -66,9 +76,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _navigateToLogin() {
-    Navigator.pushReplacement(
+    debugPrint('導向登入頁面...');
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false, // 清除所有頁面堆疊
     );
   }
 
@@ -91,6 +103,209 @@ class _ProfilePageState extends State<ProfilePage> {
       _isLoading = true;
     });
     await _loadUserData();
+  }
+
+  /// 導向編輯個人資料頁面
+  Future<void> _showEditProfileDialog() async {
+    try {
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => const EditProfilePage(),
+        ),
+      );
+
+      if (result == true) {
+        // 編輯完成，重新載入用戶資料
+        await _refreshUserData();
+      }
+    } catch (e) {
+      debugPrint('導向編輯個人資料頁面失敗: $e');
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '無法開啟編輯個人資料頁面',
+        );
+      }
+    }
+  }
+
+  /// 顯示註銷帳號確認對話框
+  Future<void> _showDeleteAccountDialog() async {
+    final TextEditingController passwordController = TextEditingController();
+    bool isDeleting = false;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.red.shade600,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '註銷帳號',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.error900,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '此操作將永久刪除您的帳號和所有相關數據，包括：',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '• 個人資料和設定\n• 上傳的照片和文件\n• 活動記錄\n• 所有其他相關數據',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '此操作無法復原。請輸入您的密碼以確認：',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    enabled: !isDeleting,
+                    decoration: InputDecoration(
+                      labelText: '密碼',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.lock),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () {
+                    passwordController.dispose();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: isDeleting ? null : () async {
+                    if (passwordController.text.trim().isEmpty) {
+                      CustomSnackBar.showError(
+                        context,
+                        message: '請輸入密碼',
+                      );
+                      return;
+                    }
+
+                    setState(() {
+                      isDeleting = true;
+                    });
+
+                    try {
+                      await _deleteAccount(passwordController.text.trim());
+                      passwordController.dispose();
+                      Navigator.of(context).pop();
+                      
+                      // 確保在對話框關閉後再導向登入頁面
+                      if (mounted) {
+                        CustomSnackBar.showSuccess(
+                          context,
+                          message: '帳號已成功註銷',
+                        );
+                        
+                        // 延遲一下讓用戶看到成功訊息，然後導向登入頁面
+                        Future.delayed(const Duration(seconds: 1), () {
+                          if (mounted) {
+                            _navigateToLogin();
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      setState(() {
+                        isDeleting = false;
+                      });
+                      if (mounted) {
+                        CustomSnackBar.showError(
+                          context,
+                          message: e.toString(),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('確認刪除'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 執行註銷帳號
+  Future<void> _deleteAccount(String password) async {
+    try {
+      if (_currentUser == null) {
+        throw Exception('沒有用戶登入');
+      }
+
+      debugPrint('開始註銷帳號流程...');
+
+      // 1. 重新驗證用戶
+      await _authService.reauthenticateUser(password: password);
+      debugPrint('用戶重新驗證完成');
+
+      // 2. 刪除用戶數據
+      await _userService.deleteUserData(_currentUser!.uid);
+      debugPrint('用戶數據刪除完成');
+
+      // 3. 刪除Firebase Authentication帳號
+      await _authService.deleteAccount();
+      debugPrint('Firebase帳號刪除完成');
+
+      debugPrint('註銷帳號流程完成');
+    } catch (e) {
+      debugPrint('註銷帳號失敗: $e');
+      throw Exception(e.toString().replaceAll('Exception: ', ''));
+    }
   }
 
   @override
@@ -158,10 +373,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           width: 2,
                         ),
                       ),
-                      child: Icon(
-                        Icons.person,
-                        size: 50,
-                        color: AppColors.primary900,
+                      child: ClipOval(
+                        child: _buildProfileAvatar(),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -175,7 +388,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
+                    _buildKycStatusBadge(),
+                    const SizedBox(height: 8),
                     Text(
                       _currentUser?.email ?? '未知信箱',
                       style: TextStyle(
@@ -189,40 +404,6 @@ class _ProfilePageState extends State<ProfilePage> {
               
               const SizedBox(height: 24),
               
-              // 帳戶資訊區塊
-              _buildSectionTitle('帳戶資訊'),
-              const SizedBox(height: 16),
-              
-              _buildInfoCard('電子信箱', _currentUser?.email ?? '未知'),
-              
-              if (_userData != null) ...[
-                _buildInfoCard(
-                  '帳戶類型', 
-                  _userData!['accountType'] == 'business' ? '企業帳戶' : '個人帳戶'
-                ),
-                
-                if (_userData!['accountType'] == 'personal') ...[
-                  if (_userData!['name'] != null)
-                    _buildInfoCard('姓名', _userData!['name']),
-                  if (_userData!['gender'] != null)
-                    _buildInfoCard('性別', _getGenderDisplayName(_userData!['gender'])),
-                  if (_userData!['age'] != null)
-                    _buildInfoCard('年齡', '${_userData!['age']} 歲'),
-                ] else ...[
-                  if (_userData!['companyName'] != null)
-                    _buildInfoCard('企業名稱', _userData!['companyName']),
-                  if (_userData!['contactName'] != null)
-                    _buildInfoCard('聯絡人', _userData!['contactName']),
-                ],
-                
-                _buildInfoCard(
-                  '驗證狀態', 
-                  _userData!['isVerified'] == true ? '已驗證' : '未驗證'
-                ),
-              ],
-              
-              const SizedBox(height: 32),
-              
               // 設定區塊
               _buildSectionTitle('設定'),
               const SizedBox(height: 16),
@@ -231,55 +412,40 @@ class _ProfilePageState extends State<ProfilePage> {
                 icon: Icons.edit,
                 title: '編輯個人資料',
                 subtitle: '更新您的個人資訊',
-                onTap: () {
-                  // TODO: 實作編輯個人資料功能
-                  CustomSnackBar.showInfo(
-                    context,
-                    message: '編輯個人資料功能即將推出',
-                  );
-                },
-              ),
-              
-              _buildActionButton(
-                icon: Icons.notifications,
-                title: '通知設定',
-                subtitle: '管理您的通知偏好',
-                onTap: () {
-                  // TODO: 實作通知設定功能
-                  CustomSnackBar.showInfo(
-                    context,
-                    message: '通知設定功能即將推出',
-                  );
-                },
-              ),
-              
-              _buildActionButton(
-                icon: Icons.security,
-                title: '隱私與安全',
-                subtitle: '管理您的隱私設定',
-                onTap: () {
-                  // TODO: 實作隱私設定功能
-                  CustomSnackBar.showInfo(
-                    context,
-                    message: '隱私設定功能即將推出',
-                  );
-                },
-              ),
-              
-              _buildActionButton(
-                icon: Icons.help,
-                title: '幫助與支援',
-                subtitle: '取得協助或回報問題',
-                onTap: () {
-                  // TODO: 實作幫助功能
-                  CustomSnackBar.showInfo(
-                    context,
-                    message: '幫助功能即將推出',
-                  );
-                },
+                onTap: _showEditProfileDialog,
               ),
               
               const SizedBox(height: 32),
+              
+              // 危險區域標題
+              _buildSectionTitle('危險區域'),
+              const SizedBox(height: 16),
+              
+              // 註銷帳號按鈕
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: _showDeleteAccountDialog,
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text(
+                    '註銷帳號',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red, width: 2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
               
               // 登出按鈕
               SizedBox(
@@ -296,7 +462,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.primary900,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -317,6 +483,57 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  /// 構建個人資料頭像
+  Widget _buildProfileAvatar() {
+    // 檢查是否有上傳的個人照片
+    if (_userData != null && _userData!['profileImages'] != null) {
+      final profileImages = _userData!['profileImages'] as List<dynamic>?;
+      if (profileImages != null && profileImages.isNotEmpty) {
+        final firstImageUrl = profileImages.first as String;
+        return Image.network(
+          firstImageUrl,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary900),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('載入個人照片失敗: $error');
+            return _buildDefaultAvatar();
+          },
+        );
+      }
+    }
+    
+    // 沒有照片時顯示預設頭像
+    return _buildDefaultAvatar();
+  }
+
+  /// 構建預設頭像
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 100,
+      height: 100,
+      color: AppColors.primary100,
+      child: Icon(
+        Icons.person,
+        size: 50,
+        color: AppColors.primary900,
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -328,43 +545,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildInfoCard(String label, String value) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade200,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildActionButton({
     required IconData icon,
@@ -436,18 +616,138 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  String _getGenderDisplayName(String gender) {
-    switch (gender) {
-      case 'male':
-        return '男性';
-      case 'female':
-        return '女性';
-      case 'other':
-        return '其他';
-      case 'prefer_not_to_say':
-        return '不願透露';
+
+  /// 構建 KYC 狀態徽章
+  Widget _buildKycStatusBadge() {
+    // 企業帳號和個人帳號都根據 KYC 狀態顯示
+    switch (_kycStatus) {
+      case 'approved':
+        return _buildStatusBadge(
+          text: '身份已認證',
+          icon: Icons.verified,
+          backgroundColor: Colors.green.shade50,
+          textColor: Colors.green.shade700,
+          iconColor: Colors.green.shade600,
+          onTap: null,
+        );
+      
+      case 'pending':
+        return _buildStatusBadge(
+          text: '平台審核中',
+          icon: Icons.hourglass_empty,
+          backgroundColor: Colors.orange.shade50,
+          textColor: Colors.orange.shade700,
+          iconColor: Colors.orange.shade600,
+          onTap: null,
+        );
+      
+      case 'rejected':
+        return _buildStatusBadge(
+          text: '審核未通過',
+          icon: Icons.error_outline,
+          backgroundColor: Colors.red.shade50,
+          textColor: Colors.red.shade700,
+          iconColor: Colors.red.shade600,
+          onTap: _navigateToKyc,
+        );
+      
       default:
-        return gender;
+        return _buildStatusBadge(
+          text: '尚未認證',
+          icon: Icons.warning_amber,
+          backgroundColor: Colors.red.shade50,
+          textColor: Colors.red.shade700,
+          iconColor: Colors.red.shade600,
+          onTap: _accountType == 'business' ? null : _navigateToKyc, // 企業帳號不能進入個人 KYC 流程
+        );
+    }
+  }
+
+  /// 構建狀態徽章的通用方法
+  Widget _buildStatusBadge({
+    required String text,
+    required IconData icon,
+    required Color backgroundColor,
+    required Color textColor,
+    required Color iconColor,
+    VoidCallback? onTap,
+  }) {
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: textColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: iconColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 12,
+              color: iconColor,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: badge,
+      );
+    }
+    
+    return badge;
+  }
+
+  /// 導向 KYC 認證頁面
+  Future<void> _navigateToKyc() async {
+    try {
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => const KycPage(fromRegistration: false),
+        ),
+      );
+
+      if (result == true) {
+        // KYC 完成，重新載入用戶資料
+        await _refreshUserData();
+        if (mounted) {
+          CustomSnackBar.showSuccess(
+            context,
+            message: 'KYC 認證已提交，等待審核',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('導向 KYC 頁面失敗: $e');
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '無法開啟 KYC 認證頁面',
+        );
+      }
     }
   }
 }
