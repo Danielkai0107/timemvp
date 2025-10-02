@@ -282,6 +282,29 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         password: _passwordController.text,
       );
       
+      // 獲取當前用戶
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('用戶創建失敗');
+      }
+
+      // 上傳圖片到 Firebase Storage
+      List<String> uploadedPhotoUrls = [];
+      if (_uploadedPhotos.isNotEmpty) {
+        try {
+          debugPrint('開始上傳個人相片: $_uploadedPhotos');
+          uploadedPhotoUrls = await _userService.uploadFiles(
+            filePaths: _uploadedPhotos,
+            folderName: 'profile_images',
+            uid: user.uid,
+          );
+          debugPrint('個人相片上傳成功: $uploadedPhotoUrls');
+        } catch (e) {
+          debugPrint('個人相片上傳失敗: $e');
+          // 繼續流程，但記錄錯誤
+        }
+      }
+
       // 準備基本註冊資料（不含 KYC）
       final registrationData = {
         'accountType': _selectedAccountType,
@@ -290,12 +313,70 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         'gender': _selectedGender,
         'age': _selectedAge,
         'password': _passwordController.text,
-        'photos': _uploadedPhotos,
+        'profileImages': uploadedPhotoUrls, // 使用上傳後的 URLs
         'isVerified': false, // 未認證
       };
 
-      // 如果是企業帳戶，添加企業相關資料
+      // 如果是企業帳戶，添加企業相關資料並上傳文件
       if (_selectedAccountType == 'business') {
+        // 上傳企業文件
+        List<String> businessRegistrationUrls = [];
+        List<String> bankBookUrls = [];
+        List<String> idCardFrontUrls = [];
+        List<String> idCardBackUrls = [];
+
+        if (_businessRegistrationDocs.isNotEmpty) {
+          try {
+            businessRegistrationUrls = await _userService.uploadFiles(
+              filePaths: _businessRegistrationDocs,
+              folderName: 'business_registration',
+              uid: user.uid,
+            );
+            debugPrint('商業登記書上傳成功: $businessRegistrationUrls');
+          } catch (e) {
+            debugPrint('商業登記書上傳失敗: $e');
+          }
+        }
+
+        if (_bankBookCover.isNotEmpty) {
+          try {
+            bankBookUrls = await _userService.uploadFiles(
+              filePaths: _bankBookCover,
+              folderName: 'bank_book',
+              uid: user.uid,
+            );
+            debugPrint('存摺封面上傳成功: $bankBookUrls');
+          } catch (e) {
+            debugPrint('存摺封面上傳失敗: $e');
+          }
+        }
+
+        if (_idCardFront.isNotEmpty) {
+          try {
+            idCardFrontUrls = await _userService.uploadFiles(
+              filePaths: _idCardFront,
+              folderName: 'id_card_front',
+              uid: user.uid,
+            );
+            debugPrint('身分證正面上傳成功: $idCardFrontUrls');
+          } catch (e) {
+            debugPrint('身分證正面上傳失敗: $e');
+          }
+        }
+
+        if (_idCardBack.isNotEmpty) {
+          try {
+            idCardBackUrls = await _userService.uploadFiles(
+              filePaths: _idCardBack,
+              folderName: 'id_card_back',
+              uid: user.uid,
+            );
+            debugPrint('身分證背面上傳成功: $idCardBackUrls');
+          } catch (e) {
+            debugPrint('身分證背面上傳失敗: $e');
+          }
+        }
+
         registrationData.addAll({
           'contactName': _contactNameController.text,
           'contactPhone': _contactPhoneController.text,
@@ -304,10 +385,10 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           'companyPhone': _companyPhoneController.text,
           'companyAddress': _companyAddressController.text,
           'companyTaxId': _taxIdController.text,
-          'businessRegistrationDocs': _businessRegistrationDocs,
-          'bankBookCover': _bankBookCover,
-          'idCardFrontDocs': _idCardFront,
-          'idCardBackDocs': _idCardBack,
+          'businessRegistrationDocs': businessRegistrationUrls, // 使用上傳後的 URLs
+          'bankBookCover': bankBookUrls, // 使用上傳後的 URLs
+          'idCardFront': idCardFrontUrls, // 使用上傳後的 URLs
+          'idCardBack': idCardBackUrls, // 使用上傳後的 URLs
           // 企業 KYC 狀態
           'businessKycStatus': 'pending', // pending, approved, rejected
           'businessKycSubmittedAt': DateTime.now().toIso8601String(),
@@ -315,11 +396,8 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
       }
       
       // 保存用戶資料
-      final user = _authService.currentUser;
-      if (user != null) {
-        await _userService.createUser(user.uid, registrationData);
-        debugPrint('註冊資料保存成功（未認證）');
-      }
+      await _userService.createUser(user.uid, registrationData);
+      debugPrint('註冊資料保存成功（未認證）');
 
       if (mounted) {
         // 顯示成功訊息
@@ -398,6 +476,29 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
       
       debugPrint('帳戶創建成功，可以進入 KYC 流程');
       
+      // 獲取當前用戶
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('用戶創建失敗');
+      }
+
+      // 上傳圖片到 Firebase Storage
+      List<String> uploadedPhotoUrls = [];
+      if (_uploadedPhotos.isNotEmpty) {
+        try {
+          debugPrint('開始上傳個人相片: $_uploadedPhotos');
+          uploadedPhotoUrls = await _userService.uploadFiles(
+            filePaths: _uploadedPhotos,
+            folderName: 'profile_images',
+            uid: user.uid,
+          );
+          debugPrint('個人相片上傳成功: $uploadedPhotoUrls');
+        } catch (e) {
+          debugPrint('個人相片上傳失敗: $e');
+          // 繼續流程，但記錄錯誤
+        }
+      }
+
       // 準備註冊資料傳給 KYC 頁面
       final registrationData = {
         'accountType': _selectedAccountType,
@@ -406,12 +507,70 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         'gender': _selectedGender,
         'age': _selectedAge,
         'password': _passwordController.text,
-        'photos': _uploadedPhotos,
+        'profileImages': uploadedPhotoUrls, // 使用上傳後的 URLs
         'isVerified': false, // KYC 完成後會更新為 true
       };
 
-      // 如果是企業帳戶，添加企業相關資料
+      // 如果是企業帳戶，添加企業相關資料並上傳文件
       if (_selectedAccountType == 'business') {
+        // 上傳企業文件
+        List<String> businessRegistrationUrls = [];
+        List<String> bankBookUrls = [];
+        List<String> idCardFrontUrls = [];
+        List<String> idCardBackUrls = [];
+
+        if (_businessRegistrationDocs.isNotEmpty) {
+          try {
+            businessRegistrationUrls = await _userService.uploadFiles(
+              filePaths: _businessRegistrationDocs,
+              folderName: 'business_registration',
+              uid: user.uid,
+            );
+            debugPrint('商業登記書上傳成功: $businessRegistrationUrls');
+          } catch (e) {
+            debugPrint('商業登記書上傳失敗: $e');
+          }
+        }
+
+        if (_bankBookCover.isNotEmpty) {
+          try {
+            bankBookUrls = await _userService.uploadFiles(
+              filePaths: _bankBookCover,
+              folderName: 'bank_book',
+              uid: user.uid,
+            );
+            debugPrint('存摺封面上傳成功: $bankBookUrls');
+          } catch (e) {
+            debugPrint('存摺封面上傳失敗: $e');
+          }
+        }
+
+        if (_idCardFront.isNotEmpty) {
+          try {
+            idCardFrontUrls = await _userService.uploadFiles(
+              filePaths: _idCardFront,
+              folderName: 'id_card_front',
+              uid: user.uid,
+            );
+            debugPrint('身分證正面上傳成功: $idCardFrontUrls');
+          } catch (e) {
+            debugPrint('身分證正面上傳失敗: $e');
+          }
+        }
+
+        if (_idCardBack.isNotEmpty) {
+          try {
+            idCardBackUrls = await _userService.uploadFiles(
+              filePaths: _idCardBack,
+              folderName: 'id_card_back',
+              uid: user.uid,
+            );
+            debugPrint('身分證背面上傳成功: $idCardBackUrls');
+          } catch (e) {
+            debugPrint('身分證背面上傳失敗: $e');
+          }
+        }
+
         registrationData.addAll({
           'contactName': _contactNameController.text,
           'contactPhone': _contactPhoneController.text,
@@ -420,10 +579,10 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           'companyPhone': _companyPhoneController.text,
           'companyAddress': _companyAddressController.text,
           'companyTaxId': _taxIdController.text,
-          'businessRegistrationDocs': _businessRegistrationDocs,
-          'bankBookCover': _bankBookCover,
-          'idCardFrontDocs': _idCardFront,
-          'idCardBackDocs': _idCardBack,
+          'businessRegistrationDocs': businessRegistrationUrls, // 使用上傳後的 URLs
+          'bankBookCover': bankBookUrls, // 使用上傳後的 URLs
+          'idCardFront': idCardFrontUrls, // 使用上傳後的 URLs
+          'idCardBack': idCardBackUrls, // 使用上傳後的 URLs
           // 企業 KYC 狀態
           'businessKycStatus': 'pending', // pending, approved, rejected
           'businessKycSubmittedAt': DateTime.now().toIso8601String(),

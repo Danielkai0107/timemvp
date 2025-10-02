@@ -218,14 +218,83 @@ class KycPageState extends State<KycPage> with WidgetsBindingObserver {
     });
 
     try {
-      // 準備 KYC 資料
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('用戶未登入');
+      }
+
+      // 上傳 KYC 相關圖片到 Firebase Storage
+      debugPrint('開始上傳 KYC 圖片...');
+      
+      List<String> idCardFrontUrls = [];
+      List<String> idCardBackUrls = [];
+      List<String> healthCardUrls = [];
+      List<String> bankBookUrls = [];
+
+      // 上傳身分證正面
+      if (_idCardFrontPhotos.isNotEmpty) {
+        try {
+          idCardFrontUrls = await _userService.uploadFiles(
+            filePaths: _idCardFrontPhotos,
+            folderName: 'kyc/id_card_front',
+            uid: user.uid,
+          );
+          debugPrint('身分證正面上傳成功: $idCardFrontUrls');
+        } catch (e) {
+          debugPrint('身分證正面上傳失敗: $e');
+        }
+      }
+
+      // 上傳身分證背面
+      if (_idCardBackPhotos.isNotEmpty) {
+        try {
+          idCardBackUrls = await _userService.uploadFiles(
+            filePaths: _idCardBackPhotos,
+            folderName: 'kyc/id_card_back',
+            uid: user.uid,
+          );
+          debugPrint('身分證背面上傳成功: $idCardBackUrls');
+        } catch (e) {
+          debugPrint('身分證背面上傳失敗: $e');
+        }
+      }
+
+      // 上傳健保卡
+      if (_healthCardPhotos.isNotEmpty) {
+        try {
+          healthCardUrls = await _userService.uploadFiles(
+            filePaths: _healthCardPhotos,
+            folderName: 'kyc/health_card',
+            uid: user.uid,
+          );
+          debugPrint('健保卡上傳成功: $healthCardUrls');
+        } catch (e) {
+          debugPrint('健保卡上傳失敗: $e');
+        }
+      }
+
+      // 上傳銀行存摺
+      if (_bankBookPhotos.isNotEmpty) {
+        try {
+          bankBookUrls = await _userService.uploadFiles(
+            filePaths: _bankBookPhotos,
+            folderName: 'kyc/bank_book',
+            uid: user.uid,
+          );
+          debugPrint('銀行存摺上傳成功: $bankBookUrls');
+        } catch (e) {
+          debugPrint('銀行存摺上傳失敗: $e');
+        }
+      }
+
+      // 準備 KYC 資料（使用上傳後的 URLs）
       final kycData = {
         'realName': _realNameController.text,
         'address': _addressController.text,
-        'idCardFrontPhotos': _idCardFrontPhotos,
-        'idCardBackPhotos': _idCardBackPhotos,
-        'healthCardPhotos': _healthCardPhotos,
-        'bankBookPhotos': _bankBookPhotos,
+        'idCardFrontPhotos': idCardFrontUrls,
+        'idCardBackPhotos': idCardBackUrls,
+        'healthCardPhotos': healthCardUrls,
+        'bankBookPhotos': bankBookUrls,
         'accountHolder': _accountHolderController.text,
         'bankCode': _bankCodeController.text,
         'accountNumber': _accountNumberController.text,
