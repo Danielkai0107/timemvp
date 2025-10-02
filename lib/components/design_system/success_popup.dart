@@ -224,6 +224,26 @@ class SuccessPopupBuilder {
     SuccessPopup.showPublishSuccess(context, onConfirm: onConfirm);
   }
 
+  /// 更新活動成功
+  static void updateActivity(
+    BuildContext context, {
+    VoidCallback? onConfirm,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => BottomSuccessPopup(
+        title: '更新成功',
+        message: '您的活動已成功更新，\n可在我的活動中查看內容。',
+        buttonText: '我知道了',
+        onButtonPressed: onConfirm ?? () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+
   /// 註冊成功
   static void registration(
     BuildContext context, {

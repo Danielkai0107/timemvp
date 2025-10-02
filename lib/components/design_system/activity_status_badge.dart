@@ -14,7 +14,13 @@ enum ActivityStatus {
   
   // 我發布的活動狀態
   eventPublished('活動發布中', 'event'),
-  taskRecruiting('招募中', 'task');
+  taskRecruiting('招募中', 'task'),
+  
+  // 草稿狀態（合併，不分活動類型）
+  draft('草稿', 'common'),
+  
+  // KYC 待審核狀態
+  kycPending('身份審核中', 'common');
 
   const ActivityStatus(this.displayName, this.category);
   
@@ -127,6 +133,24 @@ class ActivityStatusBadge extends StatelessWidget {
           textColor: AppColors.grey700,
           dotColor: AppColors.grey500,
         );
+      
+      // 草稿狀態 - 橙色圓點
+      case ActivityStatus.draft:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: Colors.orange,
+        );
+      
+      // KYC 待審核狀態 - 次要色圓點
+      case ActivityStatus.kycPending:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.secondary900,
+        );
     }
   }
 }
@@ -233,6 +257,24 @@ class _SmallStatusBadge extends StatelessWidget {
           textColor: AppColors.grey700,
           dotColor: AppColors.grey500,
         );
+      
+      // 草稿狀態 - 橙色圓點
+      case ActivityStatus.draft:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: Colors.orange,
+        );
+      
+      // KYC 待審核狀態 - 次要色圓點
+      case ActivityStatus.kycPending:
+        return const StatusColors(
+          backgroundColor: Colors.white,
+          borderColor: AppColors.grey300,
+          textColor: AppColors.grey700,
+          dotColor: AppColors.secondary900,
+        );
     }
   }
 }
@@ -268,7 +310,7 @@ class StatusBadgeBuilder {
 /// 狀態工具類
 class ActivityStatusUtils {
   /// 從字符串轉換為狀態枚舉
-  static ActivityStatus? fromString(String statusString, String activityType) {
+  static ActivityStatus? fromString(String statusString, String activityType, {String? draftReason}) {
     switch (statusString.toLowerCase()) {
       case 'registered':
         return ActivityStatus.registrationSuccess;
@@ -280,6 +322,13 @@ class ActivityStatusUtils {
         return activityType == 'event' 
             ? ActivityStatus.eventPublished 
             : ActivityStatus.taskRecruiting;
+      case 'draft':
+        // 根據草稿原因決定狀態
+        if (draftReason == 'kyc_pending' || draftReason == 'kyc_required') {
+          return ActivityStatus.kycPending;
+        } else {
+          return ActivityStatus.draft;
+        }
       case 'ended':
         return ActivityStatus.ended;
       case 'cancelled':
@@ -305,6 +354,8 @@ class ActivityStatusUtils {
     return [
       ActivityStatus.eventPublished,
       ActivityStatus.taskRecruiting,
+      ActivityStatus.draft,
+      ActivityStatus.kycPending,
       ActivityStatus.ended,
       ActivityStatus.cancelled,
     ];

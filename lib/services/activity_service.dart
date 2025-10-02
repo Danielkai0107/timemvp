@@ -254,6 +254,144 @@ class ActivityService {
     }
   }
 
+  /// 自動上架用戶的 KYC 待審核草稿活動
+  /// 當用戶 KYC 狀態變為 approved 時調用
+  Future<void> autoPublishKycPendingDrafts(String userId) async {
+    try {
+      debugPrint('開始自動上架用戶 KYC 待審核草稿活動: $userId');
+      
+      // 查詢該用戶的所有 KYC 待審核草稿活動
+      final querySnapshot = await _firestore
+          .collection('posts')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'draft')
+          .where('draftReason', isEqualTo: 'kyc_pending')
+          .get();
+      
+      debugPrint('找到 ${querySnapshot.docs.length} 個 KYC 待審核草稿活動');
+      
+      // 批量更新狀態
+      final batch = _firestore.batch();
+      for (final doc in querySnapshot.docs) {
+        batch.update(doc.reference, {
+          'status': 'active',
+          'draftReason': null, // 清除草稿原因
+          'updatedAt': DateTime.now().toIso8601String(),
+          'publishedAt': DateTime.now().toIso8601String(), // 記錄實際上架時間
+        });
+      }
+      
+      await batch.commit();
+      debugPrint('成功自動上架 ${querySnapshot.docs.length} 個活動');
+    } catch (e) {
+      debugPrint('自動上架 KYC 待審核草稿活動失敗: $e');
+      throw Exception('自動上架活動失敗: $e');
+    }
+  }
+
+  /// 手動切換活動的上架/草稿狀態
+  /// 區分用戶手動操作和系統自動操作
+  Future<void> toggleActivityPublishStatus({
+    required String activityId,
+    required bool publish, // true: 上架, false: 設為草稿
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'status': publish ? 'active' : 'draft',
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      
+      if (publish) {
+        // 上架時清除草稿原因並記錄上架時間
+        updateData['draftReason'] = null;
+        updateData['publishedAt'] = DateTime.now().toIso8601String();
+      } else {
+        // 設為草稿時標記為用戶手動操作
+        updateData['draftReason'] = 'manual';
+      }
+      
+      await _firestore.collection('posts').doc(activityId).update(updateData);
+      debugPrint('活動狀態切換成功: $activityId -> ${publish ? "上架" : "草稿"}');
+    } catch (e) {
+      debugPrint('切換活動狀態失敗: $e');
+      throw Exception('切換活動狀態失敗: $e');
+    }
+  }
+
+  /// 獲取活動的報名數量
+  Future<int> getActivityRegistrationCount(String activityId) async {
+    try {
+      debugPrint('獲取活動報名數量: $activityId');
+      
+      final querySnapshot = await _firestore
+          .collection('registrations')
+          .where('activityId', isEqualTo: activityId)
+          .where('status', whereIn: ['registered', 'application_success'])
+          .get();
+      
+      final count = querySnapshot.docs.length;
+      debugPrint('活動 $activityId 的報名數量: $count');
+      return count;
+    } catch (e) {
+      debugPrint('獲取報名數量失敗: $e');
+      return 0; // 發生錯誤時返回 0，允許切換
+    }
+  }
+
+  /// 更新活動
+  Future<void> updateActivity({
+    required String activityId,
+    required Map<String, dynamic> updateData,
+    List<String>? newImagePaths,
+    List<String>? existingImageUrls,
+  }) async {
+    try {
+      debugPrint('開始更新活動: $activityId');
+      
+      // 處理圖片上傳
+      List<String> finalImageUrls = [];
+      
+      // 保留現有的網路圖片
+      if (existingImageUrls != null) {
+        finalImageUrls.addAll(existingImageUrls);
+      }
+      
+      // 上傳新圖片
+      if (newImagePaths != null && newImagePaths.isNotEmpty) {
+        final user = _authService.currentUser;
+        if (user != null) {
+          for (String imagePath in newImagePaths) {
+            try {
+              final fileName = 'activity_${activityId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+              final ref = _storage.ref().child('activities/$activityId/$fileName');
+              
+              await ref.putFile(File(imagePath));
+              final downloadUrl = await ref.getDownloadURL();
+              finalImageUrls.add(downloadUrl);
+              
+              debugPrint('圖片上傳成功: $downloadUrl');
+            } catch (e) {
+              debugPrint('圖片上傳失敗: $imagePath, 錯誤: $e');
+            }
+          }
+        }
+      }
+      
+      // 更新活動資料
+      final finalUpdateData = {
+        ...updateData,
+        'images': finalImageUrls,
+      };
+      
+      await _firestore.collection('posts').doc(activityId).update(finalUpdateData);
+      
+      debugPrint('活動更新成功: $activityId');
+    } catch (e) {
+      debugPrint('更新活動失敗: $e');
+      throw Exception('更新活動失敗: $e');
+    }
+  }
+
   /// 獲取活動詳情
   Future<Map<String, dynamic>?> getActivityDetail(String activityId) async {
     try {
@@ -551,6 +689,8 @@ class ActivityService {
     switch (status) {
       case 'active':
         return type == 'event' ? 'published' : 'recruiting';
+      case 'draft':
+        return 'draft'; // 草稿狀態統一返回 'draft'
       case 'cancelled':
         return 'cancelled';
       case 'ended':
@@ -607,6 +747,87 @@ class ActivityService {
     } catch (e) {
       debugPrint('檢查報名狀態失敗: $e');
       return false;
+    }
+  }
+
+  /// 獲取活動的報名者列表
+  Future<List<Map<String, dynamic>>> getActivityParticipants({
+    required String activityId,
+    int limit = 50,
+  }) async {
+    try {
+      debugPrint('=== 獲取活動報名者列表 ===');
+      debugPrint('活動ID: $activityId');
+      
+      // 獲取該活動的所有報名記錄
+      final registrationQuery = await _firestore
+          .collection('user_registrations')
+          .where('activityId', isEqualTo: activityId)
+          .where('status', whereIn: ['registered', 'application_success'])
+          .limit(limit)
+          .get();
+
+      debugPrint('找到 ${registrationQuery.docs.length} 個報名記錄');
+
+      final List<Map<String, dynamic>> participants = [];
+
+      // 為每個報名記錄獲取對應的用戶詳情
+      for (int i = 0; i < registrationQuery.docs.length; i++) {
+        final doc = registrationQuery.docs[i];
+        final registrationData = doc.data();
+        final userId = registrationData['userId'] as String;
+        
+        debugPrint('處理報名記錄 ${i + 1}: 用戶ID=$userId');
+        
+        try {
+          // 獲取用戶詳情
+          final userInfo = await _userService.getUserBasicInfo(userId);
+          if (userInfo.isNotEmpty) {
+            debugPrint('用戶詳情獲取成功: ${userInfo['name']}');
+            
+            final participantData = {
+              'registration': {
+                'id': doc.id,
+                ...registrationData,
+              },
+              'user': userInfo,
+            };
+            
+            participants.add(participantData);
+          } else {
+            debugPrint('❌ 用戶詳情獲取失敗，用戶ID: $userId');
+          }
+        } catch (e) {
+          debugPrint('❌ 獲取用戶詳情時發生錯誤: $e');
+        }
+      }
+
+      debugPrint('=== 最終獲取到 ${participants.length} 個有效報名者 ===');
+      
+      // 按報名時間排序（最新的在前）
+      participants.sort((a, b) {
+        final aRegisteredAt = a['registration']['registeredAt'] as String?;
+        final bRegisteredAt = b['registration']['registeredAt'] as String?;
+        
+        if (aRegisteredAt == null && bRegisteredAt == null) return 0;
+        if (aRegisteredAt == null) return 1;
+        if (bRegisteredAt == null) return -1;
+        
+        try {
+          final aDate = DateTime.parse(aRegisteredAt);
+          final bDate = DateTime.parse(bRegisteredAt);
+          return bDate.compareTo(aDate); // 降序排列（最新的在前）
+        } catch (e) {
+          debugPrint('日期解析錯誤: $e');
+          return 0;
+        }
+      });
+      
+      return participants;
+    } catch (e) {
+      debugPrint('=== 獲取活動報名者失敗 ===');
+      debugPrint('錯誤詳情: $e');
+      throw Exception('獲取活動報名者失敗: $e');
     }
   }
 

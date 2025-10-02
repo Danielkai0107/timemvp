@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'activity_service.dart';
 
 /// 用戶服務，負責與Firestore和Firebase Storage進行交互
 class UserService {
@@ -191,6 +192,19 @@ class UserService {
       });
       
       debugPrint('KYC 資料更新成功');
+      
+      // 如果 KYC 狀態變為 approved，自動上架待審核的草稿活動
+      final kycStatus = kycData['kycStatus'] as String?;
+      if (kycStatus == 'approved') {
+        try {
+          final activityService = ActivityService();
+          await activityService.autoPublishKycPendingDrafts(uid);
+          debugPrint('自動上架 KYC 待審核草稿活動完成');
+        } catch (e) {
+          debugPrint('自動上架草稿活動失敗: $e');
+          // 不拋出異常，避免影響 KYC 狀態更新
+        }
+      }
     } catch (e) {
       debugPrint('更新 KYC 資料時發生錯誤: $e');
       throw Exception('更新 KYC 資料失敗：$e');
@@ -274,6 +288,18 @@ class UserService {
       });
       
       debugPrint('企業 KYC 狀態更新成功');
+      
+      // 如果 KYC 狀態變為 approved，自動上架待審核的草稿活動
+      if (status == 'approved') {
+        try {
+          final activityService = ActivityService();
+          await activityService.autoPublishKycPendingDrafts(uid);
+          debugPrint('自動上架 KYC 待審核草稿活動完成');
+        } catch (e) {
+          debugPrint('自動上架草稿活動失敗: $e');
+          // 不拋出異常，避免影響 KYC 狀態更新
+        }
+      }
     } catch (e) {
       debugPrint('更新企業 KYC 狀態時發生錯誤: $e');
       throw Exception('更新企業 KYC 狀態失敗：$e');

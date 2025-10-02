@@ -173,13 +173,40 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       return true;
     }).toList();
 
+    // 排序報名活動：已取消和已結束排在最後
+    _filteredRegisteredActivities.sort((a, b) {
+      final registrationA = a['registration'] as Map<String, dynamic>;
+      final activityA = a['activity'] as Map<String, dynamic>;
+      final statusStringA = registrationA['status'] as String? ?? 'registered';
+      final activityTypeA = activityA['type'] as String? ?? 'event';
+      final statusA = ActivityStatusUtils.fromString(statusStringA, activityTypeA);
+      
+      final registrationB = b['registration'] as Map<String, dynamic>;
+      final activityB = b['activity'] as Map<String, dynamic>;
+      final statusStringB = registrationB['status'] as String? ?? 'registered';
+      final activityTypeB = activityB['type'] as String? ?? 'event';
+      final statusB = ActivityStatusUtils.fromString(statusStringB, activityTypeB);
+      
+      // 檢查是否為已取消或已結束狀態
+      final isInactiveA = statusA == ActivityStatus.cancelled || statusA == ActivityStatus.ended;
+      final isInactiveB = statusB == ActivityStatus.cancelled || statusB == ActivityStatus.ended;
+      
+      // 如果一個是非活躍狀態，另一個是活躍狀態，非活躍的排在後面
+      if (isInactiveA && !isInactiveB) return 1;
+      if (!isInactiveA && isInactiveB) return -1;
+      
+      // 如果都是活躍或都是非活躍，保持原順序
+      return 0;
+    });
+
     // 篩選發布活動
     _filteredPublishedActivities = _publishedActivities.where((activityData) {
       // 狀態篩選
       if (_selectedPublishedStatus != null) {
         final statusString = activityData['displayStatus'] as String? ?? 'published';
         final activityType = activityData['type'] as String? ?? 'event';
-        final status = ActivityStatusUtils.fromString(statusString, activityType);
+        final draftReason = activityData['draftReason'] as String?;
+        final status = ActivityStatusUtils.fromString(statusString, activityType, draftReason: draftReason);
         
         if (status?.name != _selectedPublishedStatus) {
           return false;
@@ -196,6 +223,30 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       
       return true;
     }).toList();
+
+    // 排序發布活動：已取消和已結束排在最後
+    _filteredPublishedActivities.sort((a, b) {
+      final statusStringA = a['displayStatus'] as String? ?? 'published';
+      final activityTypeA = a['type'] as String? ?? 'event';
+      final draftReasonA = a['draftReason'] as String?;
+      final statusA = ActivityStatusUtils.fromString(statusStringA, activityTypeA, draftReason: draftReasonA);
+      
+      final statusStringB = b['displayStatus'] as String? ?? 'published';
+      final activityTypeB = b['type'] as String? ?? 'event';
+      final draftReasonB = b['draftReason'] as String?;
+      final statusB = ActivityStatusUtils.fromString(statusStringB, activityTypeB, draftReason: draftReasonB);
+      
+      // 檢查是否為已取消或已結束狀態
+      final isInactiveA = statusA == ActivityStatus.cancelled || statusA == ActivityStatus.ended;
+      final isInactiveB = statusB == ActivityStatus.cancelled || statusB == ActivityStatus.ended;
+      
+      // 如果一個是非活躍狀態，另一個是活躍狀態，非活躍的排在後面
+      if (isInactiveA && !isInactiveB) return 1;
+      if (!isInactiveA && isInactiveB) return -1;
+      
+      // 如果都是活躍或都是非活躍，保持原順序
+      return 0;
+    });
     
     setState(() {});
   }
@@ -275,162 +326,6 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     }
   }
 
-  /// 處理狀態標籤點擊
-  void _onStatusTap(Map<String, dynamic> activityData, bool isRegistered) {
-    // 顯示狀態相關操作選單
-    _showStatusActionSheet(activityData, isRegistered);
-  }
-
-  /// 顯示狀態操作選單
-  void _showStatusActionSheet(Map<String, dynamic> activityData, bool isRegistered) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isRegistered ? '報名活動操作' : '發布活動操作',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (isRegistered) ...[
-                _buildActionItem(
-                  icon: Icons.info_outline,
-                  title: '查看活動詳情',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _onActivityTap(activityData, isRegistered);
-                  },
-                ),
-                _buildActionItem(
-                  icon: Icons.cancel_outlined,
-                  title: '取消報名',
-                  color: AppColors.error900,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _cancelRegistration(activityData);
-                  },
-                ),
-              ] else ...[
-                _buildActionItem(
-                  icon: Icons.info_outline,
-                  title: '查看活動詳情',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _onActivityTap(activityData, isRegistered);
-                  },
-                ),
-                _buildActionItem(
-                  icon: Icons.edit_outlined,
-                  title: '編輯活動',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // 實現編輯活動
-                  },
-                ),
-                _buildActionItem(
-                  icon: Icons.people_outline,
-                  title: '查看報名者',
-                  onTap: () {
-                    Navigator.pop(context);
-                    // 實現查看報名者
-                  },
-                ),
-                _buildActionItem(
-                  icon: Icons.pause_circle_outline,
-                  title: '暫停活動',
-                  color: AppColors.statusWarning,
-                  onTap: () {
-                    Navigator.pop(context);
-                    // 實現暫停活動
-                  },
-                ),
-              ],
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// 建立操作項目
-  Widget _buildActionItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: color ?? AppColors.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                color: color ?? AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 取消報名
-  Future<void> _cancelRegistration(Map<String, dynamic> registrationData) async {
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) return;
-
-      final activityId = registrationData['activity']['id'] as String;
-      
-      await _activityService.cancelRegistration(
-        userId: currentUser.uid,
-        activityId: activityId,
-      );
-
-      // 刷新數據
-      await _refreshActivities();
-
-      if (mounted) {
-        CustomSnackBar.showSuccess(
-          context,
-          message: '報名已取消',
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomSnackBar.showError(
-          context,
-          message: '取消報名失敗: $e',
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -732,7 +627,6 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
             child: MyActivityCardBuilder.fromRegistration(
               registrationData: activityData,
               onTap: () => _onActivityTap(activityData, true),
-              onStatusTap: () => _onStatusTap(activityData, true),
             ),
           );
         },
@@ -860,7 +754,6 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
             child: MyActivityCardBuilder.fromPublishedActivity(
               activityData: activityData,
               onTap: () => _onActivityTap(activityData, false),
-              onStatusTap: () => _onStatusTap(activityData, false),
             ),
           );
         },

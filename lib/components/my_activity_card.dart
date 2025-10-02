@@ -16,8 +16,6 @@ class MyActivityCard extends StatelessWidget {
   final ActivityStatus status;
   final String activityType; // 'event' 或 'task'
   final VoidCallback? onTap;
-  final VoidCallback? onStatusTap; // 點擊狀態標籤的回調
-
   const MyActivityCard({
     super.key,
     required this.title,
@@ -30,7 +28,6 @@ class MyActivityCard extends StatelessWidget {
     this.imageUrl,
     this.isPro = false,
     this.onTap,
-    this.onStatusTap,
   });
 
   @override
@@ -129,10 +126,7 @@ class MyActivityCard extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: onStatusTap,
-                          child: StatusBadgeBuilder.small(status),
-                        ),
+                        StatusBadgeBuilder.small(status),
                       ],
                     ),
                   ],
@@ -151,7 +145,6 @@ class MyActivityCardBuilder {
   static Widget fromRegistration({
     required Map<String, dynamic> registrationData,
     VoidCallback? onTap,
-    VoidCallback? onStatusTap,
   }) {
     debugPrint('=== MyActivityCard: 從報名記錄創建卡片 ===');
     debugPrint('輸入資料: $registrationData');
@@ -228,7 +221,6 @@ class MyActivityCardBuilder {
       status: status,
       activityType: activityType,
       onTap: onTap,
-      onStatusTap: onStatusTap,
     );
   }
 
@@ -236,12 +228,12 @@ class MyActivityCardBuilder {
   static Widget fromPublishedActivity({
     required Map<String, dynamic> activityData,
     VoidCallback? onTap,
-    VoidCallback? onStatusTap,
   }) {
     // 解析狀態
     final statusString = activityData['displayStatus'] as String? ?? 'published';
     final activityType = activityData['type'] as String? ?? 'event';
-    final status = ActivityStatusUtils.fromString(statusString, activityType) 
+    final draftReason = activityData['draftReason'] as String?;
+    final status = ActivityStatusUtils.fromString(statusString, activityType, draftReason: draftReason) 
         ?? (activityType == 'event' ? ActivityStatus.eventPublished : ActivityStatus.taskRecruiting);
     
     // 解析日期時間 - 優先處理 startDateTime
@@ -282,7 +274,6 @@ class MyActivityCardBuilder {
       status: status,
       activityType: activityType,
       onTap: onTap,
-      onStatusTap: onStatusTap,
     );
   }
 

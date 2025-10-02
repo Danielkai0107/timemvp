@@ -5,10 +5,12 @@ import '../components/design_system/custom_button.dart';
 import '../components/design_system/success_popup.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/activity_status_badge.dart';
+import '../components/design_system/registration_status_popup.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
 import 'my_activities_page.dart';
 import 'home.dart';
+import 'edit_activity_page.dart';
 
 class ActivityDetailPage extends StatefulWidget {
   final String activityId;
@@ -319,42 +321,73 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
           // 圖片容器 (5:3 比例)
           AspectRatio(
             aspectRatio: 5 / 3,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: images.isNotEmpty
-                  ? PageView.builder(
-                      itemCount: images.length,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentImageIndex = index;
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            image: DecorationImage(
-                              image: NetworkImage(images[index]),
-                              fit: BoxFit.cover,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.grey100,
+                  width: 1,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: images.isNotEmpty
+                    ? PageView.builder(
+                        itemCount: images.length,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentImageIndex = index;
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              image: DecorationImage(
+                                image: NetworkImage(images[index]),
+                                fit: BoxFit.cover,
+                              ),
                             ),
+                          );
+                        },
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.image,
+                            size: 64,
+                            color: Colors.grey.shade400,
                           ),
-                        );
-                      },
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.image,
-                          size: 64,
-                          color: Colors.grey.shade400,
                         ),
                       ),
-                    ),
+              ),
             ),
           ),
+          
+          // 頁數標籤（如果有多張圖片）
+          if (images.length > 1)
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${_currentImageIndex + 1}/${images.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
           
           // 分頁指示器（如果有多張圖片）
           if (images.length > 1)
@@ -685,6 +718,10 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.grey.shade300,
+              border: Border.all(
+                color: AppColors.grey100,
+                width: 1,
+              ),
               image: avatarUrl != null && avatarUrl.toString().isNotEmpty
                   ? DecorationImage(
                       image: NetworkImage(avatarUrl),
@@ -833,14 +870,38 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
   Widget _buildTopBarActionButton() {
     if (_isMyActivity) {
-      return CustomButton(
-        onPressed: () => _showCancelPublishDialog(),
-        text: '取消發布',
-        width: 120,
-        height: 54.0,
-        style: CustomButtonStyle.info,
-        borderRadius: 40.0,
-        fontSize: 16,
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 取消發布按鈕
+          CustomButton(
+            onPressed: () => _showCancelPublishDialog(),
+            text: '取消發布',
+            width: 120,
+            height: 54.0,
+            style: CustomButtonStyle.info,
+            borderRadius: 40.0,
+            fontSize: 16,
+          ),
+          
+          if (_canTogglePublishStatus())
+            const SizedBox(width: 12),
+          
+          // 上架/草稿切換按鈕（只有在沒有報名者時顯示）
+          if (_canTogglePublishStatus())
+            CustomButton(
+              onPressed: () => _togglePublishStatus(),
+              text: _isActivityDraft() ? '上架' : '下架',
+              width: 80,
+              height: 52.0,
+              style: CustomButtonStyle.outline,
+              borderColor: _isActivityDraft() ? AppColors.success700 : AppColors.grey500,
+              textColor: _isActivityDraft() ? AppColors.success900 : AppColors.grey500,
+              borderWidth: 1.5,
+              borderRadius: 40.0,
+              fontSize: 16,
+            ),
+        ],
       );
     } else if (_isRegistered) {
       return CustomButton(
@@ -901,15 +962,67 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   }
 
   Widget _buildMyActivityButton() {
-    return ButtonBuilder.primary(
-      onPressed: () {
-        // TODO: 實現查看報名狀況功能
-        CustomSnackBarBuilder.info(context, '查看報名狀況功能即將推出');
-      },
-      text: '查看報名狀況',
-      width: double.infinity,
-      height: 54.0,
-    );
+    // 如果是草稿狀態，顯示編輯按鈕和查看報名狀況按鈕
+    if (_isActivityDraft()) {
+      return Row(
+        children: [
+          Expanded(
+            child: CustomButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => EditActivityPage(
+                      activityId: widget.activityId,
+                      activityData: _activity!,
+                    ),
+                  ),
+                ).then((_) {
+                  // 編輯完成後重新載入活動詳情
+                  _loadActivityDetail();
+                });
+              },
+              text: '編輯',
+              width: double.infinity,
+              height: 52.0,
+              style: CustomButtonStyle.outline,
+              borderColor: AppColors.success700,
+              textColor: AppColors.success900,
+              borderWidth: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ButtonBuilder.primary(
+              onPressed: () {
+                RegistrationStatusPopupBuilder.show(
+                  context,
+                  activityId: widget.activityId,
+                  activityName: _activity!['name'] ?? '活動',
+                );
+              },
+              text: '查看報名狀況',
+              width: double.infinity,
+              height: 54.0,
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 非草稿狀態，只顯示查看報名狀況按鈕
+      return ButtonBuilder.primary(
+        onPressed: () {
+          RegistrationStatusPopupBuilder.show(
+            context,
+            activityId: widget.activityId,
+            activityName: _activity!['name'] ?? '活動',
+          );
+        },
+        text: '查看報名狀況',
+        width: double.infinity,
+        height: 54.0,
+      );
+    }
   }
 
   Widget _buildRegisteredButton() {
@@ -981,7 +1094,20 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       images.add(_activity!['cover']);
     }
     
-    // 然後檢查 files 中的圖片
+    // 檢查 images 字段（編輯活動時使用）
+    if (_activity!['images'] != null && _activity!['images'] is List) {
+      final imageList = _activity!['images'] as List;
+      for (final imageUrl in imageList) {
+        if (imageUrl != null && imageUrl.toString().isNotEmpty) {
+          final url = imageUrl.toString();
+          if (!images.contains(url)) {
+            images.add(url);
+          }
+        }
+      }
+    }
+    
+    // 然後檢查 files 中的圖片（創建活動時使用）
     if (_activity!['files'] != null && _activity!['files'] is List) {
       final files = _activity!['files'] as List;
       for (final file in files) {
@@ -993,6 +1119,9 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         }
       }
     }
+    
+    debugPrint('活動圖片載入: 總共找到 ${images.length} 張圖片');
+    debugPrint('圖片URLs: $images');
     
     return images;
   }
@@ -1097,7 +1226,8 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     if (_isMyActivity) {
       final status = _activity!['status'] ?? 'published';
       final activityType = _activity!['type'] ?? 'event';
-      return ActivityStatusUtils.fromString(status, activityType);
+      final draftReason = _activity!['draftReason'] as String?;
+      return ActivityStatusUtils.fromString(status, activityType, draftReason: draftReason);
     }
     
     // 如果已報名
@@ -1238,6 +1368,81 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     } catch (e) {
       if (mounted) {
         CustomSnackBarBuilder.error(context, '取消發布失敗: $e');
+      }
+    }
+  }
+
+  /// 檢查是否可以切換發布狀態
+  bool _canTogglePublishStatus() {
+    if (_activity == null) return false;
+    
+    // 只有活動狀態為 active 或 draft 時才能切換
+    final status = _activity!['status'] as String?;
+    if (status != 'active' && status != 'draft') return false;
+    
+    // 如果是草稿狀態，需要檢查草稿原因
+    if (status == 'draft') {
+      final draftReason = _activity!['draftReason'] as String?;
+      // KYC 待審核狀態不允許手動切換，需要等待自動上架
+      if (draftReason == 'kyc_pending' || draftReason == 'kyc_required') {
+        return false;
+      }
+      return true;
+    }
+    
+    // 已上架的活動需要檢查是否有報名者
+    // 目前先允許切換，實際檢查會在切換時進行
+    return true;
+  }
+
+  /// 檢查活動是否為草稿狀態
+  bool _isActivityDraft() {
+    if (_activity == null) return false;
+    return _activity!['status'] == 'draft';
+  }
+
+  /// 切換活動的發布狀態
+  Future<void> _togglePublishStatus() async {
+    if (_activity == null) return;
+    
+    try {
+      final currentStatus = _activity!['status'] as String?;
+      final willPublish = currentStatus == 'draft';
+      
+      // 如果要下架（從 active 變為 draft），需要檢查是否有報名者
+      if (!willPublish && currentStatus == 'active') {
+        final registrationCount = await _activityService.getActivityRegistrationCount(widget.activityId);
+        if (registrationCount > 0) {
+          if (mounted) {
+            CustomSnackBarBuilder.error(context, '活動已有 $registrationCount 人報名，無法下架');
+          }
+          return;
+        }
+      }
+      
+      await _activityService.toggleActivityPublishStatus(
+        activityId: widget.activityId,
+        publish: willPublish,
+      );
+      
+      // 重新載入活動詳情
+      await _loadActivityDetail();
+      
+      if (mounted) {
+        CustomSnackBarBuilder.success(
+          context, 
+          willPublish ? '活動已上架' : '活動已下架為草稿'
+        );
+        
+        // 觸發我的活動頁面重整
+        MyActivitiesPageController.refreshActivities();
+        
+        // 觸發首頁重整
+        HomePageController.refreshActivities();
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBarBuilder.error(context, '切換狀態失敗: $e');
       }
     }
   }
