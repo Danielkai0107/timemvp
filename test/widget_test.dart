@@ -7,7 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_flutter_app/main.dart';
+import 'package:time_mvp/main.dart';
 
 void main() {
   testWidgets('App launches and shows login or home', (WidgetTester tester) async {

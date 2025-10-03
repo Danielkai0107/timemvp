@@ -271,12 +271,15 @@ class TimePickerDialogState extends State<TimePickerDialog> {
   void initState() {
     super.initState();
     
-    final now = TimeOfDay.now();
-    _selectedHour = widget.selectedTime?.hour ?? now.hour;
-    _selectedMinute = widget.selectedTime?.minute ?? now.minute;
+    // 預設時針從12開始，分針從00開始
+    _selectedHour = widget.selectedTime?.hour ?? 12;
+    _selectedMinute = widget.selectedTime?.minute ?? 0;
+    
+    // 分鐘需要轉換為15分鐘單位的索引
+    final minuteIndex = _selectedMinute ~/ 15; // 0, 15, 30, 45 對應索引 0, 1, 2, 3
     
     _hourController = FixedExtentScrollController(initialItem: _selectedHour);
-    _minuteController = FixedExtentScrollController(initialItem: _selectedMinute);
+    _minuteController = FixedExtentScrollController(initialItem: minuteIndex);
   }
 
   @override
@@ -385,12 +388,11 @@ class TimePickerDialogState extends State<TimePickerDialog> {
                           physics: const FixedExtentScrollPhysics(),
                           onSelectedItemChanged: (index) {
                             setState(() {
-                              _selectedHour = index;
+                              _selectedHour = index % 24; // 循環滾動
                             });
                           },
-                          childDelegate: ListWheelChildBuilderDelegate(
-                            childCount: 24,
-                            builder: (context, index) {
+                          childDelegate: ListWheelChildLoopingListDelegate(
+                            children: List.generate(24, (index) {
                               final isSelected = index == _selectedHour;
                               return Container(
                                 alignment: Alignment.center,
@@ -403,7 +405,7 @@ class TimePickerDialogState extends State<TimePickerDialog> {
                                   ),
                                 ),
                               );
-                            },
+                            }),
                           ),
                         ),
                       ),
@@ -448,17 +450,17 @@ class TimePickerDialogState extends State<TimePickerDialog> {
                           physics: const FixedExtentScrollPhysics(),
                           onSelectedItemChanged: (index) {
                             setState(() {
-                              _selectedMinute = index;
+                              _selectedMinute = (index % 4) * 15; // 循環滾動，轉換為實際分鐘數
                             });
                           },
-                          childDelegate: ListWheelChildBuilderDelegate(
-                            childCount: 60,
-                            builder: (context, index) {
-                              final isSelected = index == _selectedMinute;
+                          childDelegate: ListWheelChildLoopingListDelegate(
+                            children: List.generate(4, (index) {
+                              final minuteValue = index * 15; // 0, 15, 30, 45
+                              final isSelected = _selectedMinute == minuteValue;
                               return Container(
                                 alignment: Alignment.center,
                                 child: Text(
-                                  index.toString().padLeft(2, '0'),
+                                  minuteValue.toString().padLeft(2, '0'),
                                   style: TextStyle(
                                     fontSize: isSelected ? 24 : 18,
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -466,7 +468,7 @@ class TimePickerDialogState extends State<TimePickerDialog> {
                                   ),
                                 ),
                               );
-                            },
+                            }),
                           ),
                         ),
                       ),

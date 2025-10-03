@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- 位置權限 -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>此應用程式需要存取您的位置以顯示附近的活動</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>此應用程式需要存取您的位置以顯示附近的活動</string>
 </dict>
 </plist>

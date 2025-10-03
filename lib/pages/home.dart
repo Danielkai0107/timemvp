@@ -5,8 +5,10 @@ import '../components/design_system/custom_tabs.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../components/category_tabs.dart';
 import '../components/activity_card.dart';
+import '../components/search_filter_popup.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
+import '../services/search_filter_service.dart';
 import 'login_page.dart';
 import 'create_activity_page.dart';
 import 'activity_detail_page.dart';
@@ -39,11 +41,14 @@ class HomePageController {
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final ActivityService _activityService = ActivityService();
+  final SearchFilterService _searchFilterService = SearchFilterService();
   
   AuthUser? _currentUser;
   bool _isLoading = true;
   List<Map<String, dynamic>> _eventActivities = [];
   List<Map<String, dynamic>> _taskActivities = [];
+  List<Map<String, dynamic>> _filteredEventActivities = [];
+  List<Map<String, dynamic>> _filteredTaskActivities = [];
   bool _isLoadingActivities = false;
   
   late TabController _tabController;
@@ -62,6 +67,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         setState(() {});
       }
     });
+    
+    // 初始化搜尋篩選服務
+    _initializeSearchFilter();
+    
     _loadUserData();
     _loadActivities();
   }
@@ -71,7 +80,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // 從全域控制器註銷
     HomePageController._unregister();
     _tabController.dispose();
+    // 先移除監聽器再dispose
+    _searchFilterService.removeListener(_onSearchFilterChanged);
+    _searchFilterService.dispose();
     super.dispose();
+  }
+  
+  /// 初始化搜尋篩選服務
+  Future<void> _initializeSearchFilter() async {
+    await _searchFilterService.initialize();
+    _searchFilterService.addListener(_onSearchFilterChanged);
+  }
+  
+  /// 搜尋篩選條件變更時的回調
+  void _onSearchFilterChanged() {
+    if (mounted) {
+      _applyFilters();
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -155,6 +180,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _eventActivities = eventActivities;
           _taskActivities = taskActivities;
         });
+        _applyFilters(); // 載入活動後應用篩選
       }
     } catch (e) {
       debugPrint('載入活動失敗: $e');
@@ -201,6 +227,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             _taskActivities = activities;
           }
         });
+        _applyFilters(); // 重整活動後應用篩選
       }
     } catch (e) {
       debugPrint('重整 $type 活動失敗: $e');
@@ -217,6 +244,33 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<void> _refreshFromExternal() async {
     debugPrint('=== 從外部觸發首頁重整 ===');
     await _loadActivities();
+  }
+  
+  /// 應用搜尋篩選條件
+  void _applyFilters() {
+    if (mounted) {
+      setState(() {
+        _filteredEventActivities = _eventActivities
+            .where((activity) => _searchFilterService.matchesFilters(activity))
+            .toList();
+        _filteredTaskActivities = _taskActivities
+            .where((activity) => _searchFilterService.matchesFilters(activity))
+            .toList();
+      });
+    }
+  }
+  
+  /// 顯示篩選彈窗
+  void _showFilterPopup() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SearchFilterPopup(
+        searchFilterService: _searchFilterService,
+        onApplyFilters: _applyFilters,
+      ),
+    );
   }
 
   @override
@@ -257,8 +311,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildActivityList(_eventActivities, 'event'),
-                  _buildActivityList(_taskActivities, 'task'),
+                  _buildActivityList(_filteredEventActivities, 'event'),
+                  _buildActivityList(_filteredTaskActivities, 'task'),
                 ],
               ),
             ),
@@ -308,18 +362,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   // 頂部搜尋、位置和日期時間區域
   Widget _buildTopSection() {
-    final now = DateTime.now();
-    final dateStr = '${now.month}/${now.day}';
-    
     return GestureDetector(
       onTap: () {
-        // TODO: 打開篩選 popup
-        if (mounted) {
-          CustomSnackBar.showInfo(
-            context,
-            message: '篩選功能即將推出',
-          );
-        }
+        _showFilterPopup();
       },
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -350,17 +395,25 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  '搜尋',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black,
-                    fontWeight: FontWeight.w400,
+                Expanded(
+                  child: Text(
+                    _searchFilterService.searchKeyword.isEmpty 
+                        ? '搜尋' 
+                        : _searchFilterService.searchKeyword,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: _searchFilterService.searchKeyword.isEmpty 
+                          ? Colors.grey.shade600 
+                          : Colors.black,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
+                // 位置顯示區域
                 Text(
-                  '台北市，大安區',
+                  _searchFilterService.locationText,
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey.shade700,
@@ -377,7 +430,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  dateStr,
+                  _searchFilterService.dateText,
                   style: const TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w400,
@@ -385,8 +438,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                 ),
                 Text(
-                  '08:00 - 17:00',
-                  style: TextStyle(
+                  _searchFilterService.timeText,
+                  style: const TextStyle(
                     fontSize: 30,
                     color: Colors.black,
                     fontWeight: FontWeight.w400,
