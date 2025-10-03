@@ -336,10 +336,12 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
       // 如果 result 為 null 或 false，用戶取消了 KYC，留在當前步驟
     } catch (e) {
       debugPrint('導向 KYC 流程失敗: $e');
-      CustomSnackBar.showError(
-        context,
-        message: '無法進入 KYC 認證流程',
-      );
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '無法進入 KYC 認證流程',
+        );
+      }
     }
   }
 
@@ -1970,10 +1972,12 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         });
       }
     } catch (e) {
-      CustomSnackBar.showError(
-        context,
-        message: '選擇圖片失敗，請確認已授予相簿權限',
-      );
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '選擇圖片失敗，請確認已授予相簿權限',
+        );
+      }
     }
   }
 
@@ -1992,10 +1996,12 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         });
       }
     } catch (e) {
-      CustomSnackBar.showError(
-        context,
-        message: '拍照失敗，請確認已授予相機權限',
-      );
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '拍照失敗，請確認已授予相機權限',
+        );
+      }
     }
   }
 

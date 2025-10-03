@@ -102,7 +102,9 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   Future<void> _signInWithEmailPassword() async {
     if (!_validateInputs()) return;
     
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     
     try {
       final user = await _authService.signInWithEmailAndPassword(
@@ -123,17 +125,24 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
         
         _onLoginSuccess();
       } else {
-        CustomSnackBar.showError(context, message: '登入失敗：無法獲取用戶資訊');
+        if (mounted) {
+          CustomSnackBar.showError(context, message: '登入失敗：無法獲取用戶資訊');
+        }
       }
     } catch (e) {
       debugPrint('登入錯誤: $e');
       _handleLoginError(e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _handleLoginError(String error) {
+    // 檢查 widget 是否仍然 mounted
+    if (!mounted) return;
+    
     // 根據錯誤類型顯示相對應的錯誤訊息
     String errorMessage;
     if (error.contains('密碼錯誤') || error.contains('wrong-password')) {
@@ -156,6 +165,8 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
 
   // 忘記密碼
   Future<void> _resetPassword() async {
+    if (!mounted) return;
+    
     if (_emailController.text.trim().isEmpty) {
       CustomSnackBar.showError(context, message: '請先輸入電子信箱');
       return;
@@ -166,7 +177,9 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       await _authService.sendPasswordResetEmail(
@@ -182,11 +195,16 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
     } catch (e) {
       _handlePasswordResetError(e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _handlePasswordResetError(String error) {
+    // 檢查 widget 是否仍然 mounted
+    if (!mounted) return;
+    
     String errorMessage;
     if (error.contains('找不到此電子郵件帳號') || error.contains('user-not-found')) {
       errorMessage = '找不到此電子郵件帳號';
@@ -201,6 +219,8 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   }
 
   bool _validateInputs() {
+    if (!mounted) return false;
+    
     if (_emailController.text.trim().isEmpty) {
       CustomSnackBar.showError(context, message: '請輸入電子信箱');
       return false;
@@ -244,10 +264,12 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
         final selectedTypeText = _selectedAccountTypeIndex == 0 ? '個人' : '企業';
         final userTypeText = userAccountType == 'personal' ? '個人' : '企業';
         
-        CustomSnackBar.showError(
-          context, 
-          message: '帳號類型不匹配：您選擇了${selectedTypeText}帳號，但此帳戶為${userTypeText}帳號'
-        );
+        if (mounted) {
+          CustomSnackBar.showError(
+            context, 
+            message: '帳號類型不匹配：您選擇了${selectedTypeText}帳號，但此帳戶為${userTypeText}帳號'
+          );
+        }
         
         debugPrint('帳號類型不匹配，拒絕登入');
         return false;
@@ -261,6 +283,9 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
 
 
   void _onLoginSuccess() {
+    // 檢查 widget 是否仍然 mounted
+    if (!mounted) return;
+    
     // 導航到首頁
     final user = _authService.currentUser;
     final email = user?.email ?? user?.uid ?? '未知用戶';

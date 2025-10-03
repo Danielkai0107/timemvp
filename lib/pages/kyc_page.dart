@@ -1018,6 +1018,8 @@ class _PhotoUploadWidgetState extends State<_PhotoUploadWidget> {
   }
 
   void _showErrorDialog(String message) {
+    if (!mounted) return;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

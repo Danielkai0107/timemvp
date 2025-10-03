@@ -891,11 +891,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
           if (_canTogglePublishStatus())
             CustomButton(
               onPressed: () => _togglePublishStatus(),
-              text: _isActivityDraft() ? '上架' : '下架',
-              width: 80,
+              text: _isActivityDraft() ? '上架' : '下架編輯',
+              width: _isActivityDraft() ? 80: 120,
               height: 52.0,
               style: CustomButtonStyle.outline,
-              borderColor: _isActivityDraft() ? AppColors.success700 : AppColors.grey500,
+              borderColor: _isActivityDraft() ? AppColors.success700 : AppColors.grey300,
               textColor: _isActivityDraft() ? AppColors.success900 : AppColors.grey500,
               borderWidth: 1.5,
               borderRadius: 40.0,

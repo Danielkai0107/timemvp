@@ -314,10 +314,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return GestureDetector(
       onTap: () {
         // TODO: 打開篩選 popup
-        CustomSnackBar.showInfo(
-          context,
-          message: '篩選功能即將推出',
-        );
+        if (mounted) {
+          CustomSnackBar.showInfo(
+            context,
+            message: '篩選功能即將推出',
+          );
+        }
       },
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),

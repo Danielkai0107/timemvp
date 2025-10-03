@@ -436,16 +436,20 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           );
           
           // 顯示提示訊息
-          CustomSnackBar.showError(
-            context,
-            message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
-            duration: const Duration(seconds: 3),
-          );
+          if (mounted) {
+            CustomSnackBar.showError(
+              context,
+              message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
+              duration: const Duration(seconds: 3),
+            );
+          }
         } else {
-          CustomSnackBar.showError(
-            context,
-            message: '註冊失敗: $e',
-          );
+          if (mounted) {
+            CustomSnackBar.showError(
+              context,
+              message: '註冊失敗: $e',
+            );
+          }
         }
       }
     } finally {
@@ -630,17 +634,21 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
           );
           
           // 顯示提示訊息
-          CustomSnackBar.showError(
-            context,
-            message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
-            duration: const Duration(seconds: 3),
-          );
+          if (mounted) {
+            CustomSnackBar.showError(
+              context,
+              message: '此電子郵件已被註冊，請修改電子郵件或前往登入',
+              duration: const Duration(seconds: 3),
+            );
+          }
         } else {
           // 其他錯誤
-          CustomSnackBar.showError(
-            context,
-            message: '驗證失敗: $e',
-          );
+          if (mounted) {
+            CustomSnackBar.showError(
+              context,
+              message: '驗證失敗: $e',
+            );
+          }
         }
       }
     } finally {
@@ -1322,10 +1330,12 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         onPhotosChanged([image.path]);
       }
     } catch (e) {
-      CustomSnackBar.showError(
-        context,
-        message: '選擇圖片失敗，請確認已授予相簿權限',
-      );
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '選擇圖片失敗，請確認已授予相簿權限',
+        );
+      }
     }
   }
 
@@ -1342,10 +1352,12 @@ class RegistrationPageState extends State<RegistrationPage> with WidgetsBindingO
         onPhotosChanged([image.path]);
       }
     } catch (e) {
-      CustomSnackBar.showError(
-        context,
-        message: '拍照失敗，請確認已授予相機權限',
-      );
+      if (mounted) {
+        CustomSnackBar.showError(
+          context,
+          message: '拍照失敗，請確認已授予相機權限',
+        );
+      }
     }
   }
 
