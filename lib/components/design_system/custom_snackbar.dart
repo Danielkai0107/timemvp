@@ -4,6 +4,18 @@ import 'app_colors.dart';
 /// 自定義SnackBar組件
 /// 白底黑字，圓角設計，貼齊step_indicator顯示
 class CustomSnackBar {
+  // 全局追蹤所有活動的 overlay entries
+  static final List<OverlayEntry> _activeEntries = [];
+  
+  /// 清除所有活動的 CustomSnackBar
+  static void clearAll() {
+    for (final entry in _activeEntries) {
+      if (entry.mounted) {
+        entry.remove();
+      }
+    }
+    _activeEntries.clear();
+  }
   /// 顯示錯誤類型的SnackBar
   static void showError(
     BuildContext context, {
@@ -55,6 +67,8 @@ class CustomSnackBar {
   }) {
     // 移除現有的SnackBar
     ScaffoldMessenger.of(context).clearSnackBars();
+    // 清除所有現有的 CustomSnackBar
+    clearAll();
 
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
@@ -64,16 +78,20 @@ class CustomSnackBar {
         message: message,
         type: type,
         onDismiss: () {
+          _activeEntries.remove(overlayEntry);
           overlayEntry.remove();
         },
       ),
     );
 
+    // 添加到活動列表
+    _activeEntries.add(overlayEntry);
     overlay.insert(overlayEntry);
 
     // 自動移除
     Future.delayed(duration, () {
       if (overlayEntry.mounted) {
+        _activeEntries.remove(overlayEntry);
         overlayEntry.remove();
       }
     });
@@ -234,6 +252,10 @@ class _CustomSnackBarWidgetState extends State<_CustomSnackBarWidget>
 
 /// 自定義SnackBar建構器
 class CustomSnackBarBuilder {
+  /// 清除所有活動的 CustomSnackBar
+  static void clearAll() {
+    CustomSnackBar.clearAll();
+  }
   /// 顯示錯誤訊息
   static void error(
     BuildContext context,

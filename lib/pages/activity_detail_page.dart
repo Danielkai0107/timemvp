@@ -1290,6 +1290,10 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
           _isRegistered = true;
         });
         
+        // 先清除所有 SnackBar 和 CustomSnackBar
+        ScaffoldMessenger.of(context).clearSnackBars();
+        CustomSnackBarBuilder.clearAll();
+        
         // 顯示報名成功popup（底部彈出）
         SuccessPopupBuilder.activityRegistrationBottom(
           context,
