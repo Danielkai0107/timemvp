@@ -84,6 +84,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
   Future<void> _loadActivities() async {
     if (_isLoading) return;
     
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -110,6 +111,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       debugPrint('- 報名活動數量: ${results[0].length}');
       debugPrint('- 發布活動數量: ${results[1].length}');
 
+      if (!mounted) return;
       setState(() {
         _registeredActivities = results[0];
         _publishedActivities = results[1];
@@ -126,6 +128,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       debugPrint('=== 載入活動數據失敗 ===');
       debugPrint('錯誤: $e');
       
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -248,11 +251,14 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       return 0;
     });
     
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   /// 重置篩選
   void _resetFilters() {
+    if (!mounted) return;
     setState(() {
       _selectedRegisteredStatus = null;
       _selectedPublishedStatus = null;
@@ -475,6 +481,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       ],
       value: currentValue ?? 'all',
       onChanged: (value) {
+        if (!mounted) return;
         setState(() {
           if (isRegisteredTab) {
             _selectedRegisteredStatus = value == 'all' ? null : value;
@@ -499,6 +506,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       ],
       value: _selectedCategory ?? 'all',
       onChanged: (value) {
+        if (!mounted) return;
         setState(() {
           _selectedCategory = value == 'all' ? null : value;
         });

@@ -61,7 +61,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _participantsController = TextEditingController();
-  int _maxParticipants = 0;
+  int _maxParticipants = 1;
   bool _isUnlimited = false;
   
   // 錯誤狀態管理
@@ -237,7 +237,8 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
            _startTime != null &&
            _endDate != null &&
            _endTime != null &&
-           _addressController.text.trim().isNotEmpty;
+           _addressController.text.trim().isNotEmpty &&
+           _isEndTimeAfterStartTime(); // 新增：驗證結束時段晚於開始時段
   }
   bool _canProceedFromStep5() => _introductionController.text.trim().isNotEmpty;
   bool _canProceedFromStep6() => _uploadedPhotos.isNotEmpty;
@@ -260,6 +261,31 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     }
   }
 
+  /// 驗證結束時段是否晚於開始時段
+  bool _isEndTimeAfterStartTime() {
+    if (_startDate == null || _startTime == null || _endDate == null || _endTime == null) {
+      return false;
+    }
+    
+    final startDateTime = DateTime(
+      _startDate!.year,
+      _startDate!.month,
+      _startDate!.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+    
+    final endDateTime = DateTime(
+      _endDate!.year,
+      _endDate!.month,
+      _endDate!.day,
+      _endTime!.hour,
+      _endTime!.minute,
+    );
+    
+    return endDateTime.isAfter(startDateTime);
+  }
+
   /// 顯示步驟4的錯誤提醒
   void _showStep4Errors() {
     setState(() {
@@ -270,10 +296,22 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
       _endDateError = _endDate == null ? '請選擇結束日期' : null;
       _endTimeError = _endTime == null ? '請選擇結束時間' : null;
       _addressError = _addressController.text.trim().isEmpty ? '請填寫活動地址' : null;
+      
+      // 新增：檢查時段邏輯
+      if (_startDate != null && _startTime != null && _endDate != null && _endTime != null) {
+        if (!_isEndTimeAfterStartTime()) {
+          _endDateError = '結束時間必須晚於開始時間';
+          _endTimeError = '結束時間必須晚於開始時間';
+        }
+      }
     });
 
-      // 顯示錯誤提示
-      CustomSnackBarBuilder.validationError(context, '請完成所有必填欄位');
+    // 顯示錯誤提示
+    String errorMessage = '請完成所有必填欄位';
+    if (!_isEndTimeAfterStartTime() && _startDate != null && _startTime != null && _endDate != null && _endTime != null) {
+      errorMessage = '結束時間必須晚於開始時間';
+    }
+    CustomSnackBarBuilder.validationError(context, errorMessage);
   }
 
   /// 處理第一步的下一步邏輯
@@ -298,18 +336,22 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         return;
       } else {
         // 已完成 KYC，允許編輯價格並繼續
-        setState(() {
-          _canEditPrice = true;
-        });
+        if (mounted) {
+          setState(() {
+            _canEditPrice = true;
+          });
+        }
         _nextStep();
       }
     } else {
       // 選擇非營利活動，不允許編輯價格
-      setState(() {
-        _canEditPrice = false;
-        _price = 0; // 設為免費
-        _priceController.text = '0';
-      });
+      if (mounted) {
+        setState(() {
+          _canEditPrice = false;
+          _price = 0; // 設為免費
+          _priceController.text = '0';
+        });
+      }
       _nextStep();
     }
   }
@@ -326,7 +368,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
       if (result == true) {
         // KYC 完成，重新檢查用戶狀態
         await _checkUserStatus();
-        if (_hasCompletedKyc) {
+        if (_hasCompletedKyc && mounted) {
           setState(() {
             _canEditPrice = true;
           });
@@ -972,6 +1014,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                         // 如果結束日期未設定或早於開始日期，自動設定為開始日期
                         if (_endDate == null || (_endDate != null && date != null && _endDate!.isBefore(date))) {
                           _endDate = date;
+                          _endDateError = null; // 清除結束日期錯誤
                         }
                       });
                     },
@@ -988,6 +1031,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       setState(() {
                         _startTime = time;
                         _startTimeError = null; // 清除錯誤
+                        // 如果結束時間已設定，檢查並清除時段錯誤
+                        if (_endTime != null && _endTimeError == '結束時間必須晚於開始時間') {
+                          _endTimeError = null;
+                        }
+                        if (_endDate != null && _endDateError == '結束時間必須晚於開始時間') {
+                          _endDateError = null;
+                        }
                       });
                     },
                     dialogTitle: '選擇開始時間',
@@ -1011,6 +1061,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       setState(() {
                         _endDate = date;
                         _endDateError = null; // 清除錯誤
+                        // 如果結束時間已設定且有時段錯誤，檢查並清除
+                        if (_endTime != null && _endTimeError == '結束時間必須晚於開始時間') {
+                          _endTimeError = null;
+                        }
+                        if (_endDateError == '結束時間必須晚於開始時間') {
+                          _endDateError = null;
+                        }
                       });
                     },
                     dialogTitle: '選擇結束日期',
@@ -1072,7 +1129,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                 children: [
                   GestureDetector(
                     onTap: () {
-                      if (!_isUnlimited && _maxParticipants > 0) {
+                      if (!_isUnlimited && _maxParticipants > 1) {
                         setState(() {
                           _maxParticipants--;
                           _participantsController.text = _maxParticipants.toString();
@@ -1089,7 +1146,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       child: Icon(
                         Icons.remove, 
                         size: 20,
-                        color: (!_isUnlimited && _maxParticipants > 0) ? Colors.grey : Colors.grey.shade300,
+                        color: (!_isUnlimited && _maxParticipants > 1) ? Colors.grey : Colors.grey.shade300,
                       ),
                     ),
                   ),
@@ -1839,7 +1896,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         ),
         onChanged: (value) {
           final number = int.tryParse(value);
-          if (number != null && number >= 0) {
+          if (number != null && number >= 1) {
             setState(() {
               _maxParticipants = number;
             });
@@ -1847,7 +1904,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         },
         onSubmitted: (value) {
           final number = int.tryParse(value);
-          if (number != null && number >= 0) {
+          if (number != null && number >= 1) {
             setState(() {
               _maxParticipants = number;
             });
