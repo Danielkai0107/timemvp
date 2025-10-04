@@ -115,13 +115,8 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
       if (user != null) {
         debugPrint('登入成功: ${user.email}');
         
-        // 驗證帳號類型
-        final isAccountTypeValid = await _validateAccountType(user.uid);
-        if (!isAccountTypeValid) {
-          // 帳號類型不匹配，登出用戶
-          await _authService.signOut();
-          return;
-        }
+        // 驗證並自動調整帳號類型
+        await _validateAccountType(user.uid);
         
         _onLoginSuccess();
       } else {
@@ -237,7 +232,7 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
     return true;
   }
 
-  /// 驗證用戶帳號類型是否與選擇的類型匹配
+  /// 驗證並自動調整用戶帳號類型
   Future<bool> _validateAccountType(String uid) async {
     try {
       // 獲取用戶的實際帳號類型
@@ -260,19 +255,23 @@ class LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
         debugPrint('帳號類型匹配，允許登入');
         return true;
       } else {
-        // 帳號類型不匹配，顯示錯誤訊息
-        final selectedTypeText = _selectedAccountTypeIndex == 0 ? '個人' : '企業';
+        // 帳號類型不匹配，自動調整到正確的類型
         final userTypeText = userAccountType == 'personal' ? '個人' : '企業';
+        final correctIndex = userAccountType == 'personal' ? 0 : 1;
         
         if (mounted) {
-          CustomSnackBar.showError(
+          setState(() {
+            _selectedAccountTypeIndex = correctIndex;
+          });
+          
+          CustomSnackBar.showInfo(
             context, 
-            message: '帳號類型不匹配：您選擇了${selectedTypeText}帳號，但此帳戶為${userTypeText}帳號'
+            message: '已自動切換到您的${userTypeText}帳號'
           );
         }
         
-        debugPrint('帳號類型不匹配，拒絕登入');
-        return false;
+        debugPrint('帳號類型已自動調整為: $userAccountType');
+        return true;
       }
     } catch (e) {
       debugPrint('驗證帳號類型時發生錯誤: $e');
