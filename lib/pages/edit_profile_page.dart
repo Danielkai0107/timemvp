@@ -5,6 +5,7 @@ import '../components/design_system/custom_text_input.dart';
 import '../components/design_system/custom_dropdown.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/step_indicator.dart';
+import '../components/design_system/avatar_upload.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 
@@ -30,6 +31,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Map<String, dynamic>? _userData;
   String? _selectedGender;
   int? _selectedAge;
+  String? _newAvatarPath;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -107,37 +109,53 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       Map<String, dynamic> updateData = {};
+      bool hasChanges = false;
       
+      // 處理頭像更新
+      if (_newAvatarPath != null) {
+        debugPrint('開始上傳頭像: $_newAvatarPath');
+        await _userService.updateUserAvatar(_currentUser!.uid, _newAvatarPath);
+        debugPrint('頭像上傳成功');
+        hasChanges = true;
+      }
+      
+      // 處理其他資料更新
       if (_userData!['accountType'] == 'personal') {
-        if (_nameController.text.trim().isNotEmpty) {
+        if (_nameController.text.trim().isNotEmpty && 
+            _nameController.text.trim() != (_userData!['name'] ?? '')) {
           updateData['name'] = _nameController.text.trim();
         }
-        if (_selectedGender != null) {
+        if (_selectedGender != null && _selectedGender != _userData!['gender']) {
           updateData['gender'] = _selectedGender;
         }
-        if (_selectedAge != null) {
+        if (_selectedAge != null && _selectedAge != _userData!['age']) {
           updateData['age'] = _selectedAge;
         }
       } else {
-        if (_companyNameController.text.trim().isNotEmpty) {
+        if (_companyNameController.text.trim().isNotEmpty && 
+            _companyNameController.text.trim() != (_userData!['companyName'] ?? '')) {
           updateData['companyName'] = _companyNameController.text.trim();
         }
-        if (_contactNameController.text.trim().isNotEmpty) {
+        if (_contactNameController.text.trim().isNotEmpty && 
+            _contactNameController.text.trim() != (_userData!['contactName'] ?? '')) {
           updateData['contactName'] = _contactNameController.text.trim();
         }
       }
 
       if (updateData.isNotEmpty) {
         await _userService.updateUserData(_currentUser!.uid, updateData);
-        
+        hasChanges = true;
+      }
+
+      if (hasChanges) {
         if (mounted) {
           CustomSnackBar.showSuccess(
             context,
             message: '個人資料已更新',
           );
           
-          // 延遲一下讓用戶看到成功訊息，然後返回
-          Future.delayed(const Duration(seconds: 1), () {
+          // 短暫延遲讓用戶看到成功訊息，然後返回並觸發重整
+          Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               Navigator.of(context).pop(true); // 返回 true 表示已更新
             }
@@ -149,6 +167,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
             context,
             message: '沒有變更需要儲存',
           );
+          
+          // 沒有變更時也返回，但不觸發重整
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              Navigator.of(context).pop(false);
+            }
+          });
         }
       }
     } catch (e) {
@@ -167,6 +192,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  String? _getCurrentAvatarUrl() {
+    if (_userData == null) return null;
+    
+    // 檢查是否有 avatar 欄位（新格式）
+    if (_userData!['avatar'] != null && _userData!['avatar'].toString().isNotEmpty) {
+      return _userData!['avatar'] as String;
+    }
+    
+    // 檢查是否有 profileImages 欄位（舊格式）
+    if (_userData!['profileImages'] != null) {
+      final profileImages = _userData!['profileImages'] as List<dynamic>?;
+      if (profileImages != null && profileImages.isNotEmpty) {
+        return profileImages.first as String;
+      }
+    }
+    
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +279,43 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (_userData != null) ...[
+                            // 頭像編輯區域
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    '個人頭像',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AvatarUpload(
+                                    currentAvatarUrl: _getCurrentAvatarUrl(),
+                                    onAvatarChanged: (avatarPath) {
+                                      setState(() {
+                                        _newAvatarPath = avatarPath;
+                                      });
+                                    },
+                                    size: 120,
+                                    isEnabled: !_isSaving,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '點擊頭像來更換照片',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 32),
+                            
                             if (_userData!['accountType'] == 'personal') ...[
                               // 個人帳戶編輯欄位
                               CustomTextInput(

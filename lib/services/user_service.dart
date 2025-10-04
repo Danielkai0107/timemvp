@@ -65,12 +65,23 @@ class UserService {
       
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
+        
+        // 獲取頭像URL，優先使用新的 avatar 欄位
+        String? avatarUrl = data['avatar'] as String?;
+        if (avatarUrl == null || avatarUrl.isEmpty) {
+          // 檢查舊的 profileImages 欄位
+          final profileImages = data['profileImages'] as List<dynamic>?;
+          if (profileImages != null && profileImages.isNotEmpty) {
+            avatarUrl = profileImages.first as String;
+          }
+        }
+        
         return {
           'id': uid,
           'name': data['name'] ?? data['fullName'] ?? '用戶',
           'email': data['email'],
           'phone': data['phone'],
-          'avatar': data['avatar'] ?? data['profileImage'],
+          'avatar': avatarUrl,
           'status': 'approved',
           'rating': '0.00',
         };
@@ -178,6 +189,67 @@ class UserService {
     } catch (e) {
       debugPrint('更新用戶資料時發生錯誤: $e');
       throw Exception('更新用戶資料失敗：$e');
+    }
+  }
+
+  /// 上傳用戶頭像
+  Future<String> uploadAvatar({
+    required String filePath,
+    required String uid,
+  }) async {
+    try {
+      debugPrint('Firebase Storage上傳頭像: $uid');
+      
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('頭像文件不存在');
+      }
+      
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'avatar_$timestamp.jpg';
+      final storagePath = 'users/$uid/avatar/$fileName';
+      
+      // 創建參考
+      final ref = _storage.ref().child(storagePath);
+      
+      // 上傳檔案
+      final uploadTask = ref.putFile(file);
+      
+      // 等待上傳完成
+      await uploadTask;
+      
+      // 獲取下載URL
+      final downloadUrl = await ref.getDownloadURL();
+      
+      debugPrint('頭像上傳完成: $storagePath -> $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('上傳頭像時發生錯誤: $e');
+      throw Exception('上傳頭像失敗：$e');
+    }
+  }
+
+  /// 更新用戶頭像
+  Future<void> updateUserAvatar(String uid, String? avatarPath) async {
+    try {
+      debugPrint('更新用戶頭像: $uid');
+      
+      String? avatarUrl;
+      
+      if (avatarPath != null) {
+        // 上傳新頭像
+        avatarUrl = await uploadAvatar(filePath: avatarPath, uid: uid);
+      }
+      
+      // 更新用戶資料中的頭像URL
+      await updateUserData(uid, {
+        'avatar': avatarUrl,
+      });
+      
+      debugPrint('用戶頭像更新成功: $avatarUrl');
+    } catch (e) {
+      debugPrint('更新用戶頭像時發生錯誤: $e');
+      throw Exception('更新頭像失敗：$e');
     }
   }
 

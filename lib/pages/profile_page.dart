@@ -485,35 +485,44 @@ class _ProfilePageState extends State<ProfilePage> {
 
   /// 構建個人資料頭像
   Widget _buildProfileAvatar() {
-    // 檢查是否有上傳的個人照片
-    if (_userData != null && _userData!['profileImages'] != null) {
+    String? avatarUrl;
+    
+    // 優先檢查新的 avatar 欄位
+    if (_userData != null && _userData!['avatar'] != null && _userData!['avatar'].toString().isNotEmpty) {
+      avatarUrl = _userData!['avatar'] as String;
+    }
+    // 檢查舊的 profileImages 欄位
+    else if (_userData != null && _userData!['profileImages'] != null) {
       final profileImages = _userData!['profileImages'] as List<dynamic>?;
       if (profileImages != null && profileImages.isNotEmpty) {
-        final firstImageUrl = profileImages.first as String;
-        return Image.network(
-          firstImageUrl,
-          width: 100,
-          height: 100,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary900),
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('載入個人照片失敗: $error');
-            return _buildDefaultAvatar();
-          },
-        );
+        avatarUrl = profileImages.first as String;
       }
+    }
+    
+    if (avatarUrl != null) {
+      return Image.network(
+        avatarUrl,
+        width: 100,
+        height: 100,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary900),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('載入個人照片失敗: $error');
+          return _buildDefaultAvatar();
+        },
+      );
     }
     
     // 沒有照片時顯示預設頭像
