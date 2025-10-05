@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'custom_button.dart';
 import 'app_colors.dart';
+import 'user_profile_popup.dart';
 import '../../services/activity_service.dart';
 
 /// 查看報名狀況滿版彈窗組件
@@ -326,31 +327,34 @@ class _RegistrationStatusPopupState extends State<RegistrationStatusPopup> {
       ),
       child: Row(
         children: [
-          // 頭像 - 最左邊
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.grey300,
-              border: Border.all(
-                color: AppColors.grey100,
-                width: 1,
+          // 頭像 - 最左邊（可點擊）
+          GestureDetector(
+            onTap: () => _showUserProfile(participant),
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.grey300,
+                border: Border.all(
+                  color: AppColors.grey100,
+                  width: 1,
+                ),
+                image: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(avatarUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              image: avatarUrl != null && avatarUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(avatarUrl),
-                      fit: BoxFit.cover,
+              child: avatarUrl == null || avatarUrl.isEmpty
+                  ? Icon(
+                      Icons.person,
+                      color: AppColors.grey700,
+                      size: 28,
                     )
                   : null,
             ),
-            child: avatarUrl == null || avatarUrl.isEmpty
-                ? Icon(
-                    Icons.person,
-                    color: AppColors.grey700,
-                    size: 28,
-                  )
-                : null,
           ),
           
           const SizedBox(width: 12),
@@ -439,6 +443,20 @@ class _RegistrationStatusPopupState extends State<RegistrationStatusPopup> {
         ],
       ),
     );
+  }
+
+  /// 顯示用戶資料卡片
+  void _showUserProfile(Map<String, dynamic> participant) {
+    final user = participant['user'] as Map<String, dynamic>;
+    final userId = user['id'] ?? user['uid'];
+    
+    if (userId != null) {
+      UserProfilePopupBuilder.show(
+        context,
+        userId: userId,
+        initialUserData: user,
+      );
+    }
   }
 }
 
