@@ -7,6 +7,7 @@ import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/activity_status_badge.dart';
 import '../components/design_system/registration_status_popup.dart';
 import '../components/design_system/activity_rating_popup.dart';
+import '../components/design_system/skeleton_loader.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
 import 'my_activities_page.dart';
@@ -47,6 +48,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   bool _isLoadingRatings = false;
   List<Map<String, dynamic>> _organizerRatings = [];
   bool _isLoadingOrganizerRatings = false;
+  bool _allDataLoaded = false; // 追蹤所有數據是否載入完成
 
   @override
   void initState() {
@@ -106,6 +108,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         // 載入發布者評分數據
         await _loadOrganizerRatings();
         
+        // 所有數據載入完成
+        setState(() {
+          _allDataLoaded = true;
+        });
+        
         if (activity != null) {
           debugPrint('活動詳情載入成功: ${activity['name']}');
         } else {
@@ -117,6 +124,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _allDataLoaded = true; // 即使失敗也設為true，避免一直顯示骨架
         });
         CustomSnackBarBuilder.error(context, '載入活動詳情失敗: $e');
       }
@@ -305,12 +313,9 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+    // 顯示骨架UI直到所有數據載入完成
+    if (_isLoading || !_allDataLoaded) {
+      return const ActivityDetailSkeleton();
     }
 
     if (_activity == null) {
