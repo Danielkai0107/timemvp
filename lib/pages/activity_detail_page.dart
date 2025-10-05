@@ -7,6 +7,7 @@ import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/activity_status_badge.dart';
 import '../components/design_system/registration_status_popup.dart';
 import '../components/design_system/activity_rating_popup.dart';
+import '../components/design_system/organizer_rating_popup.dart';
 import '../components/design_system/skeleton_loader.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
@@ -40,6 +41,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   bool _isMyActivity = false;
   bool _isRegistered = false;
   bool _isCheckingRegistration = true;
+  String? _registrationStatus; // 詳細的報名狀態
   AuthUser? _currentUser;
   YoutubePlayerController? _youtubeController;
   bool _isTopBarVisible = true;
@@ -76,6 +78,9 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     
     // 檢查是否需要顯示評分彈窗
     _checkAndShowRatingPopup();
+    
+    // 檢查是否需要顯示發布者評分參與者彈窗
+    _checkAndShowOrganizerRatingPopup();
   }
 
   @override
@@ -245,16 +250,30 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     }
 
     try {
-      final isRegistered = await _activityService.isUserRegistered(
+      // 獲取詳細的報名狀態
+      final registrationData = await _activityService.getUserRegistrationStatus(
         userId: _currentUser!.uid,
         activityId: widget.activityId,
       );
       
       if (mounted) {
-        setState(() {
-          _isRegistered = isRegistered;
-          _isCheckingRegistration = false;
-        });
+        if (registrationData != null) {
+          final status = registrationData['status'] as String?;
+          
+          setState(() {
+            _isRegistered = true;
+            _registrationStatus = status;
+            _isCheckingRegistration = false;
+          });
+          
+          debugPrint('報名狀態詳情: $_registrationStatus');
+        } else {
+          setState(() {
+            _isRegistered = false;
+            _registrationStatus = null;
+            _isCheckingRegistration = false;
+          });
+        }
       }
     } catch (e) {
       debugPrint('檢查報名狀態失敗: $e');
@@ -1281,19 +1300,56 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         ],
       );
     } else {
-      // 非草稿狀態，只顯示查看報名狀況按鈕
-      return ButtonBuilder.primary(
-        onPressed: () {
-          RegistrationStatusPopupBuilder.show(
-            context,
-            activityId: widget.activityId,
-            activityName: _activity!['name'] ?? '活動',
-          );
-        },
-        text: '查看報名狀況',
-        width: double.infinity,
-        height: 54.0,
-      );
+      // 非草稿狀態，檢查活動是否已結束以決定顯示什麼按鈕
+      if (_isActivityEndedOrCancelled()) {
+        // 活動已結束，顯示評分參與者按鈕
+        return Row(
+          children: [
+            Expanded(
+              child: ButtonBuilder.primary(
+                onPressed: () {
+                  RegistrationStatusPopupBuilder.show(
+                    context,
+                    activityId: widget.activityId,
+                    activityName: _activity!['name'] ?? '活動',
+                  );
+                },
+                text: '查看報名狀況',
+                width: double.infinity,
+                height: 54.0,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: CustomButton(
+                onPressed: () => _showOrganizerRatingPopup(),
+                text: '評分參與者',
+                width: double.infinity,
+                height: 54.0,
+                style: CustomButtonStyle.outline,
+                borderColor: AppColors.primary900,
+                textColor: AppColors.primary900,
+                borderWidth: 1.5,
+                icon: const Icon(Icons.star_outline),
+              ),
+            ),
+          ],
+        );
+      } else {
+        // 活動進行中，只顯示查看報名狀況按鈕
+        return ButtonBuilder.primary(
+          onPressed: () {
+            RegistrationStatusPopupBuilder.show(
+              context,
+              activityId: widget.activityId,
+              activityName: _activity!['name'] ?? '活動',
+            );
+          },
+          text: '查看報名狀況',
+          width: double.infinity,
+          height: 54.0,
+        );
+      }
     }
   }
 
@@ -1503,11 +1559,43 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       return ActivityStatusUtils.fromString(status, activityType, draftReason: draftReason);
     }
     
-    // 如果已報名
-    if (_isRegistered) {
-      // 這裡可以根據報名狀態來決定
-      // 目前簡單返回報名成功狀態
-      return ActivityStatus.registrationSuccess;
+    // 如果已報名，需要考慮活動和報名狀態
+    if (_isRegistered && _registrationStatus != null) {
+      final activityType = _activity!['type'] ?? 'event';
+      final activityStatus = _activity!['status'] as String?;
+      final endDateTime = _activity!['endDateTime'] as String?;
+      
+      // 檢查活動是否已結束
+      bool isActivityEnded = false;
+      
+      // 1. 檢查活動狀態是否為 ended
+      if (activityStatus == 'ended') {
+        isActivityEnded = true;
+      }
+      
+      // 2. 檢查報名狀態是否為 ended
+      if (_registrationStatus == 'ended') {
+        isActivityEnded = true;
+      }
+      
+      // 3. 檢查是否超過活動結束時間
+      if (!isActivityEnded && endDateTime != null) {
+        try {
+          final endTime = DateTime.parse(endDateTime);
+          final now = DateTime.now();
+          isActivityEnded = now.isAfter(endTime);
+        } catch (e) {
+          debugPrint('解析活動結束時間失敗: $e');
+        }
+      }
+      
+      // 如果活動已結束，顯示已結束狀態
+      if (isActivityEnded) {
+        return ActivityStatus.ended;
+      }
+      
+      // 否則根據報名狀態決定
+      return ActivityStatusUtils.fromString(_registrationStatus!, activityType);
     }
     
     // 未報名的活動不顯示狀態標籤
@@ -2450,6 +2538,89 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       debugPrint('提前結束活動失敗: $e');
       if (mounted) {
         CustomSnackBarBuilder.error(context, '提前結束活動失敗: $e');
+      }
+    }
+  }
+
+  /// 檢查並顯示發布者評分參與者彈窗
+  Future<void> _checkAndShowOrganizerRatingPopup() async {
+    if (_currentUser == null) return;
+    
+    try {
+      // 延遲一點時間，確保頁面已經完全載入，並且在參與者評分彈窗之後
+      await Future.delayed(const Duration(milliseconds: 2500));
+      
+      if (!mounted) return;
+      
+      final shouldShow = await _activityService.shouldShowOrganizerRatingPopup(
+        organizerId: _currentUser!.uid,
+        activityId: widget.activityId,
+      );
+      
+      if (shouldShow && mounted) {
+        _showOrganizerRatingPopup();
+      }
+    } catch (e) {
+      debugPrint('檢查發布者評分彈窗失敗: $e');
+    }
+  }
+
+  /// 顯示發布者評分參與者彈窗
+  void _showOrganizerRatingPopup() async {
+    if (_activity == null || _currentUser == null) return;
+    
+    try {
+      // 獲取活動參與者列表
+      final participants = await _activityService.getActivityParticipants(
+        activityId: widget.activityId,
+      );
+      
+      if (participants.isEmpty) {
+        if (mounted) {
+          CustomSnackBarBuilder.info(context, '此活動沒有參與者');
+        }
+        return;
+      }
+      
+      if (mounted) {
+        OrganizerRatingPopupBuilder.show(
+          context,
+          activityId: widget.activityId,
+          activityName: _activity!['name'] ?? '活動',
+          participants: participants,
+          onSubmit: _handleOrganizerRatingSubmit,
+          onSkip: () {
+            debugPrint('發布者跳過評分參與者');
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBarBuilder.error(context, '載入參與者列表失敗: $e');
+      }
+    }
+  }
+
+  /// 處理發布者評分提交
+  Future<void> _handleOrganizerRatingSubmit(Map<String, dynamic> ratings, String? comment) async {
+    if (_currentUser == null) return;
+    
+    try {
+      await _activityService.submitOrganizerRating(
+        activityId: widget.activityId,
+        organizerId: _currentUser!.uid,
+        ratings: ratings,
+        comment: comment,
+      );
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // 關閉評分彈窗
+        CustomSnackBarBuilder.success(context, '評分提交成功，謝謝您的回饋！');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 關閉評分彈窗
+        CustomSnackBarBuilder.error(context, '評分提交失敗: $e');
       }
     }
   }

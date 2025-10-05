@@ -324,7 +324,7 @@ class ActivityService {
       debugPrint('獲取活動報名數量: $activityId');
       
       final querySnapshot = await _firestore
-          .collection('registrations')
+          .collection('user_registrations')
           .where('activityId', isEqualTo: activityId)
           .where('status', whereIn: ['registered', 'application_success'])
           .get();
@@ -794,6 +794,35 @@ class ActivityService {
     }
   }
 
+  /// 獲取用戶的詳細報名狀態
+  Future<Map<String, dynamic>?> getUserRegistrationStatus({
+    required String userId,
+    required String activityId,
+  }) async {
+    try {
+      debugPrint('=== 獲取用戶詳細報名狀態 ===');
+      debugPrint('用戶ID: $userId');
+      debugPrint('活動ID: $activityId');
+      
+      final doc = await _firestore
+          .collection('user_registrations')
+          .doc('${userId}_$activityId')
+          .get();
+      
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        debugPrint('報名狀態詳情: $data');
+        return data;
+      } else {
+        debugPrint('用戶未報名此活動');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('獲取報名狀態詳情失敗: $e');
+      return null;
+    }
+  }
+
   /// 獲取活動的報名者列表
   Future<List<Map<String, dynamic>>> getActivityParticipants({
     required String activityId,
@@ -803,11 +832,11 @@ class ActivityService {
       debugPrint('=== 獲取活動報名者列表 ===');
       debugPrint('活動ID: $activityId');
       
-      // 獲取該活動的所有報名記錄
+      // 獲取該活動的所有報名記錄（包含已結束的參與者）
       final registrationQuery = await _firestore
           .collection('user_registrations')
           .where('activityId', isEqualTo: activityId)
-          .where('status', whereIn: ['registered', 'application_success'])
+          .where('status', whereIn: ['registered', 'application_success', 'ended'])
           .limit(limit)
           .get();
 
@@ -1421,6 +1450,274 @@ class ActivityService {
       return userRatings;
     } catch (e) {
       debugPrint('獲取用戶收到的評分列表失敗: $e');
+      return [];
+    }
+  }
+
+  /// 發布者提交對參與者的評分
+  Future<void> submitOrganizerRating({
+    required String activityId,
+    required String organizerId,
+    required Map<String, dynamic> ratings,
+    String? comment,
+  }) async {
+    try {
+      debugPrint('=== 發布者提交參與者評分 ===');
+      debugPrint('活動ID: $activityId');
+      debugPrint('發布者ID: $organizerId');
+      debugPrint('評分數據: $ratings');
+      debugPrint('評論: $comment');
+
+      // 檢查發布者是否已經評分過
+      final existingRating = await _firestore
+          .collection('organizer_ratings')
+          .doc('${organizerId}_$activityId')
+          .get();
+
+      if (existingRating.exists) {
+        debugPrint('發布者已經評分過此活動的參與者');
+        throw Exception('您已經評分過此活動的參與者');
+      }
+
+      // 準備評分數據
+      final ratingData = {
+        'activityId': activityId,
+        'organizerId': organizerId,
+        'ratings': ratings,
+        'comment': comment,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      // 保存評分記錄
+      await _firestore
+          .collection('organizer_ratings')
+          .doc('${organizerId}_$activityId')
+          .set(ratingData);
+
+      debugPrint('發布者評分記錄保存成功');
+
+      // 更新被評分參與者的評分統計
+      await _updateParticipantRatingStats(ratings);
+
+      debugPrint('=== 發布者評分提交完成 ===');
+    } catch (e) {
+      debugPrint('提交發布者評分失敗: $e');
+      throw Exception('提交評分失敗: $e');
+    }
+  }
+
+  /// 更新參與者評分統計
+  Future<void> _updateParticipantRatingStats(Map<String, dynamic> ratings) async {
+    try {
+      for (final entry in ratings.entries) {
+        final userId = entry.key;
+        final rating = entry.value as int;
+
+        debugPrint('更新參與者 $userId 的評分統計，新評分: $rating');
+
+        // 獲取用戶當前的評分統計
+        final userDoc = await _firestore.collection('users').doc(userId).get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final currentRating = double.tryParse(userData['participantRating']?.toString() ?? '5.0') ?? 5.0;
+          final ratingCount = userData['participantRatingCount'] as int? ?? 0;
+
+          // 計算新的平均評分
+          final totalRating = (currentRating * ratingCount) + rating;
+          final newRatingCount = ratingCount + 1;
+          final newAverageRating = totalRating / newRatingCount;
+
+          // 更新用戶參與者評分
+          await _firestore.collection('users').doc(userId).update({
+            'participantRating': double.parse(newAverageRating.toStringAsFixed(1)),
+            'participantRatingCount': newRatingCount,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+
+          debugPrint('參與者 $userId 評分統計更新完成: ${newAverageRating.toStringAsFixed(1)} ($newRatingCount 次評分)');
+        }
+      }
+    } catch (e) {
+      debugPrint('更新參與者評分統計失敗: $e');
+      // 不拋出異常，因為這不應該阻止評分提交
+    }
+  }
+
+  /// 檢查發布者是否已經評分過參與者
+  Future<bool> hasOrganizerRatedParticipants({
+    required String organizerId,
+    required String activityId,
+  }) async {
+    try {
+      final doc = await _firestore
+          .collection('organizer_ratings')
+          .doc('${organizerId}_$activityId')
+          .get();
+
+      return doc.exists;
+    } catch (e) {
+      debugPrint('檢查發布者評分狀態失敗: $e');
+      return false;
+    }
+  }
+
+  /// 檢查發布者是否應該顯示評分參與者彈窗
+  Future<bool> shouldShowOrganizerRatingPopup({
+    required String organizerId,
+    required String activityId,
+  }) async {
+    try {
+      // 檢查活動是否存在且由該用戶發布
+      final activity = await getActivityDetail(activityId);
+      if (activity == null || activity['userId'] != organizerId) {
+        return false;
+      }
+
+      // 檢查活動是否已結束
+      final activityStatus = activity['status'] as String?;
+      final endDateTime = activity['endDateTime'] as String?;
+
+      bool isActivityEnded = false;
+
+      // 檢查活動是否已結束的條件：
+      // 1. 活動狀態為 'ended'，或
+      // 2. 活動結束時間已過
+      if (activityStatus == 'ended') {
+        isActivityEnded = true;
+      } else if (endDateTime != null) {
+        try {
+          final endTime = DateTime.parse(endDateTime);
+          final now = DateTime.now();
+          if (now.isAfter(endTime)) {
+            isActivityEnded = true;
+          }
+        } catch (e) {
+          debugPrint('解析活動結束時間失敗: $e');
+        }
+      }
+
+      if (!isActivityEnded) {
+        debugPrint('活動尚未結束，不顯示評分彈窗');
+        return false;
+      }
+
+      // 檢查是否已經評分過
+      final hasRated = await hasOrganizerRatedParticipants(
+        organizerId: organizerId,
+        activityId: activityId,
+      );
+
+      if (hasRated) {
+        debugPrint('發布者已經評分過參與者，不顯示評分彈窗');
+        return false;
+      }
+
+      // 檢查是否有參與者
+      final participants = await getActivityParticipants(activityId: activityId);
+      if (participants.isEmpty) {
+        debugPrint('活動沒有參與者，不顯示評分彈窗');
+        return false;
+      }
+
+      debugPrint('滿足顯示發布者評分彈窗的條件');
+      return true;
+    } catch (e) {
+      debugPrint('檢查發布者評分彈窗條件失敗: $e');
+      return false;
+    }
+  }
+
+  /// 獲取活動的發布者評分記錄
+  Future<List<Map<String, dynamic>>> getOrganizerRatings({
+    required String activityId,
+    int limit = 20,
+  }) async {
+    try {
+      debugPrint('獲取活動發布者評分列表: $activityId');
+
+      final query = await _firestore
+          .collection('organizer_ratings')
+          .where('activityId', isEqualTo: activityId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+
+      final ratings = <Map<String, dynamic>>[];
+
+      for (final doc in query.docs) {
+        final ratingData = doc.data();
+        
+        // 獲取發布者資訊
+        final organizerId = ratingData['organizerId'] as String;
+        final organizerInfo = await _userService.getUserBasicInfo(organizerId);
+
+        ratings.add({
+          'id': doc.id,
+          ...ratingData,
+          'organizer': organizerInfo,
+        });
+      }
+
+      debugPrint('獲取到 ${ratings.length} 個發布者評分記錄');
+      return ratings;
+    } catch (e) {
+      debugPrint('獲取活動發布者評分列表失敗: $e');
+      return [];
+    }
+  }
+
+  /// 獲取用戶作為參與者收到的評分列表
+  Future<List<Map<String, dynamic>>> getUserParticipantRatings({
+    required String userId,
+    int limit = 20,
+  }) async {
+    try {
+      debugPrint('獲取用戶作為參與者收到的評分列表: $userId');
+
+      // 查詢所有發布者評分記錄，找出評分對象包含該用戶的記錄
+      final query = await _firestore
+          .collection('organizer_ratings')
+          .orderBy('createdAt', descending: true)
+          .limit(100) // 先獲取較多記錄，然後在客戶端篩選
+          .get();
+
+      final userRatings = <Map<String, dynamic>>[];
+
+      for (final doc in query.docs) {
+        final ratingData = doc.data();
+        final ratings = ratingData['ratings'] as Map<String, dynamic>? ?? {};
+        
+        // 檢查這個評分記錄是否包含對該用戶的評分
+        if (ratings.containsKey(userId)) {
+          // 獲取發布者資訊
+          final organizerId = ratingData['organizerId'] as String;
+          final organizerInfo = await _userService.getUserBasicInfo(organizerId);
+          
+          // 獲取活動資訊
+          final activityId = ratingData['activityId'] as String;
+          final activityInfo = await getActivityDetail(activityId);
+
+          userRatings.add({
+            'id': doc.id,
+            ...ratingData,
+            'organizer': organizerInfo,
+            'activity': activityInfo,
+            'userRating': ratings[userId], // 該用戶收到的具體評分
+          });
+
+          // 達到限制數量就停止
+          if (userRatings.length >= limit) {
+            break;
+          }
+        }
+      }
+
+      debugPrint('獲取到 ${userRatings.length} 個用戶參與者評分記錄');
+      return userRatings;
+    } catch (e) {
+      debugPrint('獲取用戶參與者評分列表失敗: $e');
       return [];
     }
   }
