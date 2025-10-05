@@ -26,7 +26,18 @@ class SearchFilterService extends ChangeNotifier {
   // Getters
   String get currentCity => _currentCity;
   String get currentArea => _currentArea;
-  String get locationText => '$_currentCity，$_currentArea';
+  String get locationText {
+    if (_isOnlineOnly) {
+      return '線上活動';
+    }
+    
+    // 如果沒有獲取到具體位置，顯示「全部」
+    if (_currentPosition == null) {
+      return '全部';
+    }
+    
+    return '$_currentCity，$_currentArea';
+  }
   Position? get currentPosition => _currentPosition;
   bool get isLoadingLocation => _isLoadingLocation;
   
@@ -278,10 +289,16 @@ class SearchFilterService extends ChangeNotifier {
     
     // 位置篩選（如果活動有位置信息且不是線上活動）
     if (!isOnline && !_isOnlineOnly) {
+      // 如果顯示「全部」（沒有獲取到具體位置），則不進行位置篩選
+      if (_currentPosition == null) {
+        // 全部模式，不篩選位置，顯示所有地區的活動
+        return true;
+      }
+      
+      // 如果有具體位置，則進行位置篩選
       final activityCity = activity['city']?.toString() ?? '';
       if (activityCity.isNotEmpty && activityCity != _currentCity) {
-        // 如果活動城市與當前城市不同，可以選擇是否過濾
-        // 這裡暫時不過濾，讓用戶看到更多選擇
+        return false; // 篩選掉不同城市的活動
       }
     }
     

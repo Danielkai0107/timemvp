@@ -355,7 +355,7 @@ class _SearchFilterPopupState extends State<SearchFilterPopup> with WidgetsBindi
         ),
         const SizedBox(height: 8),
         const Text(
-          '預設為您的裝置當前位置。',
+          '預設顯示全部地區的活動。',
           style: TextStyle(
             fontSize: 14,
             color: Colors.black,
