@@ -405,6 +405,50 @@ class ActivityService {
           ...data,
         };
         
+        // 獲取發布者資訊
+        final userId = data['userId'] as String?;
+        if (userId != null) {
+          try {
+            debugPrint('=== 獲取活動發布者資訊 ===');
+            debugPrint('發布者用戶ID: $userId');
+            debugPrint('活動ID: $activityId');
+            debugPrint('活動名稱: ${data['name']}');
+            
+            final userInfo = await _userService.getUserBasicInfo(userId);
+            debugPrint('從 UserService 獲取的用戶資訊: $userInfo');
+            
+            if (userInfo.isNotEmpty) {
+              activityDetail['user'] = userInfo;
+              debugPrint('✅ 發布者資訊獲取成功');
+              debugPrint('發布者姓名: ${userInfo['name']}');
+              debugPrint('發布者頭像: ${userInfo['avatar']}');
+              debugPrint('發布者狀態: ${userInfo['status']}');
+            } else {
+              debugPrint('❌ 發布者資訊為空，使用預設資料');
+              activityDetail['user'] = {
+                'id': userId,
+                'name': '主辦者',
+                'avatar': null,
+                'rating': '5.0',
+                'status': 'pending',
+              };
+            }
+          } catch (e) {
+            debugPrint('❌ 獲取發布者資訊失敗: $e');
+            debugPrint('錯誤類型: ${e.runtimeType}');
+            // 發生錯誤時使用預設資料
+            activityDetail['user'] = {
+              'id': userId,
+              'name': '主辦者',
+              'avatar': null,
+              'rating': '5.0',
+              'status': 'pending',
+            };
+          }
+        } else {
+          debugPrint('❌ 活動沒有發布者ID');
+        }
+        
         debugPrint('活動詳情獲取成功: ${activityDetail['name']}');
         debugPrint('活動發布者ID: ${activityDetail['userId']}');
         return activityDetail;
@@ -828,6 +872,142 @@ class ActivityService {
       debugPrint('=== 獲取活動報名者失敗 ===');
       debugPrint('錯誤詳情: $e');
       throw Exception('獲取活動報名者失敗: $e');
+    }
+  }
+
+  /// 刪除用戶發布的所有活動
+  Future<void> deleteUserActivities(String userId) async {
+    try {
+      debugPrint('開始刪除用戶發布的所有活動: $userId');
+      
+      // 獲取用戶發布的所有活動
+      final querySnapshot = await _firestore
+          .collection('posts')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      debugPrint('找到 ${querySnapshot.docs.length} 個用戶發布的活動');
+      
+      // 批量刪除活動文檔
+      final batch = _firestore.batch();
+      final List<String> activityIds = [];
+      
+      for (final doc in querySnapshot.docs) {
+        batch.delete(doc.reference);
+        activityIds.add(doc.id);
+      }
+      
+      await batch.commit();
+      debugPrint('成功刪除 ${querySnapshot.docs.length} 個活動文檔');
+      
+      // 刪除活動相關的 Storage 文件
+      await _deleteUserActivityStorageFiles(userId, activityIds);
+      
+      debugPrint('用戶活動刪除完成');
+    } catch (e) {
+      debugPrint('刪除用戶活動時發生錯誤: $e');
+      // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
+  /// 刪除用戶活動相關的 Storage 文件
+  Future<void> _deleteUserActivityStorageFiles(String userId, List<String> activityIds) async {
+    try {
+      debugPrint('刪除用戶活動 Storage 文件: $userId');
+      
+      // 刪除用戶活動文件夾下的所有文件
+      final activityFolderRef = _storage.ref().child('activity/$userId');
+      
+      try {
+        final listResult = await activityFolderRef.listAll();
+        
+        // 刪除所有文件
+        final deleteFileTasks = listResult.items.map((item) => item.delete());
+        
+        // 遞歸刪除子文件夾
+        final deleteSubfolderTasks = listResult.prefixes.map((prefix) async {
+          final subListResult = await prefix.listAll();
+          final subDeleteTasks = subListResult.items.map((item) => item.delete());
+          await Future.wait(subDeleteTasks);
+        });
+        
+        // 等待所有刪除操作完成
+        await Future.wait([
+          ...deleteFileTasks,
+          ...deleteSubfolderTasks,
+        ]);
+        
+        debugPrint('用戶活動 Storage 文件刪除成功');
+      } catch (e) {
+        debugPrint('刪除活動 Storage 文件時發生錯誤: $e');
+        // 繼續執行，不影響其他刪除操作
+      }
+      
+      // 也嘗試刪除以活動ID命名的文件夾
+      for (final activityId in activityIds) {
+        try {
+          final activitySpecificRef = _storage.ref().child('activities/$activityId');
+          final listResult = await activitySpecificRef.listAll();
+          
+          final deleteFileTasks = listResult.items.map((item) => item.delete());
+          await Future.wait(deleteFileTasks);
+          
+          debugPrint('活動 $activityId 的 Storage 文件刪除成功');
+        } catch (e) {
+          debugPrint('刪除活動 $activityId Storage 文件時發生錯誤: $e');
+          // 繼續處理下一個活動
+        }
+      }
+      
+    } catch (e) {
+      debugPrint('刪除用戶活動 Storage 文件時發生錯誤: $e');
+      // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
+  /// 刪除用戶的所有報名記錄
+  Future<void> deleteUserRegistrations(String userId) async {
+    try {
+      debugPrint('開始刪除用戶的所有報名記錄: $userId');
+      
+      // 獲取用戶的所有報名記錄
+      final querySnapshot = await _firestore
+          .collection('user_registrations')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      debugPrint('找到 ${querySnapshot.docs.length} 個用戶報名記錄');
+      
+      // 批量刪除報名記錄
+      final batch = _firestore.batch();
+      for (final doc in querySnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      await batch.commit();
+      debugPrint('成功刪除 ${querySnapshot.docs.length} 個報名記錄');
+      
+    } catch (e) {
+      debugPrint('刪除用戶報名記錄時發生錯誤: $e');
+      // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
+  /// 刪除與用戶相關的所有活動數據（發布的活動和報名記錄）
+  Future<void> deleteAllUserActivityData(String userId) async {
+    try {
+      debugPrint('開始刪除用戶的所有活動相關數據: $userId');
+      
+      // 並行執行刪除操作以提高效率
+      await Future.wait([
+        deleteUserActivities(userId),
+        deleteUserRegistrations(userId),
+      ]);
+      
+      debugPrint('用戶活動相關數據刪除完成');
+    } catch (e) {
+      debugPrint('刪除用戶活動相關數據時發生錯誤: $e');
+      throw Exception('刪除用戶活動相關數據失敗：$e');
     }
   }
 

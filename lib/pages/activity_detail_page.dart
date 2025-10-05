@@ -699,8 +699,24 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   Widget _buildOrganizerCard() {
     final user = _activity!['user'];
     final organizerName = user != null ? user['name'] ?? '主辦者' : '主辦者';
-    final organizerRating = user != null ? user['rating'] ?? '0.0' : '0.0';
+    final organizerRating = user != null ? user['rating'] ?? '5.0' : '5.0';
     final avatarUrl = user != null ? user['avatar'] : null;
+    final userStatus = user != null ? user['status'] ?? 'pending' : 'pending';
+    final kycStatus = user != null ? user['kycStatus'] : null;
+    final accountType = user != null ? user['accountType'] : null;
+    
+    // 調試資訊
+    debugPrint('=== 主辦者卡片資訊 ===');
+    debugPrint('完整用戶資料: $user');
+    debugPrint('活動發布者ID: ${_activity!['userId']}');
+    debugPrint('當前用戶ID: ${_currentUser?.uid}');
+    debugPrint('是否為我的活動: $_isMyActivity');
+    debugPrint('主辦者姓名: $organizerName');
+    debugPrint('主辦者評分: $organizerRating');
+    debugPrint('頭像URL: $avatarUrl');
+    debugPrint('用戶狀態: $userStatus');
+    debugPrint('KYC 狀態: $kycStatus');
+    debugPrint('帳號類型: $accountType');
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -747,58 +763,36 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
               children: [
                 Row(
                   children: [
-                    Text(
-                      organizerName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
+                    Flexible(
+                      child: Text(
+                        organizerName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // 認證標誌
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified,
-                            size: 12,
-                            color: Colors.orange.shade600,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '身份已認證',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.orange.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // 認證標誌（根據 KYC 狀態顯示）
+                    _buildVerificationBadge(userStatus, kycStatus),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
                     ...List.generate(5, (index) {
-                      final rating = double.tryParse(organizerRating) ?? 0.0;
+                      final rating = double.tryParse(organizerRating.toString()) ?? 5.0;
                       return Icon(
                         index < rating.floor() ? Icons.star : Icons.star_border,
                         size: 16,
-                        color: Colors.grey.shade400,
+                        color: Colors.orange.shade400,
                       );
                     }),
                     const SizedBox(width: 8),
                     Text(
-                      organizerRating,
+                      organizerRating.toString(),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -813,6 +807,127 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         ],
       ),
     );
+  }
+
+  /// 根據 KYC 狀態建立認證標誌
+  Widget _buildVerificationBadge(String userStatus, String? kycStatus) {
+    final user = _activity!['user'];
+    final accountType = user != null ? user['accountType'] : null;
+    final isBusinessAccount = accountType == 'business';
+    
+    if (userStatus == 'approved' && kycStatus == 'approved') {
+      // KYC 已通過 - 顯示綠色認證標誌
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.green.shade100,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isBusinessAccount ? Icons.business : Icons.verified,
+              size: 12,
+              color: Colors.green.shade600,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              isBusinessAccount ? '企業已認證' : '身份已認證',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.green.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (kycStatus == 'pending') {
+      // KYC 審核中 - 顯示橙色待審核標誌
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade100,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.schedule,
+              size: 12,
+              color: Colors.orange.shade600,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              isBusinessAccount ? '企業審核中' : '審核中',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.orange.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (kycStatus == 'rejected') {
+      // KYC 被拒絕 - 顯示紅色未認證標誌
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red.shade100,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 12,
+              color: Colors.red.shade600,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              isBusinessAccount ? '企業未認證' : '未認證',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.red.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // 沒有 KYC 資料或其他狀態 - 顯示灰色未認證標誌
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isBusinessAccount ? Icons.business_outlined : Icons.help_outline,
+              size: 12,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              isBusinessAccount ? '企業未認證' : '未認證',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildTopBar() {

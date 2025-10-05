@@ -319,6 +319,8 @@ class ActivityStatusUtils {
       case 'application_success':
         return ActivityStatus.applicationSuccess;
       case 'published':
+      case 'active':  // 新增：處理 active 狀態，與 published 相同
+      case 'recruiting':  // 新增：處理 recruiting 狀態，用於任務類型活動
         return activityType == 'event' 
             ? ActivityStatus.eventPublished 
             : ActivityStatus.taskRecruiting;

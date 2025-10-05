@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 import '../components/bottom_navigation_bar.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import 'home.dart';
 import 'my_activities_page.dart';
 import 'profile_page.dart';
@@ -14,12 +16,35 @@ class MainNavigationPage extends StatefulWidget {
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
   int _currentIndex = 0;
+  final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
 
   final List<Widget> _pages = [
     const HomePage(),
     const MyActivitiesPage(),
     const ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _startKycStatusListener();
+  }
+
+  @override
+  void dispose() {
+    _userService.stopKycStatusListener();
+    super.dispose();
+  }
+
+  /// 啟動KYC狀態監聽器
+  void _startKycStatusListener() {
+    final currentUser = _authService.currentUser;
+    if (currentUser != null) {
+      debugPrint('啟動KYC狀態監聽器: ${currentUser.uid}');
+      _userService.startKycStatusListener(currentUser.uid);
+    }
+  }
 
   void _onTabSelected(int index) {
     final previousIndex = _currentIndex;
@@ -43,6 +68,15 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       // 使用 Future.delayed 確保頁面已經完全切換
       Future.delayed(const Duration(milliseconds: 100), () {
         MyActivitiesPageController.refreshActivities();
+      });
+    }
+    
+    // 如果切換到「個人資料」頁面（index = 2），觸發自動重整
+    if (index == 2 && previousIndex != 2) {
+      debugPrint('切換到個人資料頁面，觸發自動重整');
+      // 使用 Future.delayed 確保頁面已經完全切換
+      Future.delayed(const Duration(milliseconds: 100), () {
+        ProfilePageController.refreshProfile();
       });
     }
   }

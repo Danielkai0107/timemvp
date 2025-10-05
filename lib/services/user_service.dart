@@ -2,12 +2,21 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'dart:async';
 import 'activity_service.dart';
+import '../pages/my_activities_page.dart';
 
 /// 用戶服務，負責與Firestore和Firebase Storage進行交互
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // KYC狀態監聽器
+  StreamSubscription<DocumentSnapshot>? _kycStatusListener;
+  
+  // 追蹤上次的KYC狀態，避免重複觸發
+  String? _lastPersonalKycStatus;
+  String? _lastBusinessKycStatus;
   
   /// 創建用戶文檔到Firestore
   Future<void> createUserDocument({
@@ -76,14 +85,76 @@ class UserService {
           }
         }
         
+        // 檢查 KYC 狀態以確定用戶認證狀態
+        final accountType = data['accountType'] as String?;
+        String verificationStatus = 'pending';
+        String? kycStatus;
+        
+        if (accountType == 'business') {
+          // 企業帳號檢查企業 KYC 狀態
+          kycStatus = data['businessKycStatus'] as String?;
+        } else {
+          // 個人帳號檢查個人 KYC 狀態
+          kycStatus = data['kyc']?['kycStatus'] as String?;
+        }
+        
+        // 根據 KYC 狀態設定認證狀態
+        if (kycStatus == 'approved') {
+          verificationStatus = 'approved';
+        } else if (kycStatus == 'rejected') {
+          verificationStatus = 'rejected';
+        } else {
+          verificationStatus = 'pending';
+        }
+        
+        debugPrint('用戶 KYC 狀態: $kycStatus, 認證狀態: $verificationStatus');
+        
+        // 獲取用戶姓名，企業帳號優先顯示企業名稱
+        String userName = '用戶';
+        
+        if (accountType == 'business') {
+          // 企業帳號優先顯示企業名稱
+          if (data['companyName'] != null && data['companyName'].toString().isNotEmpty) {
+            userName = data['companyName'].toString();
+          } else if (data['businessName'] != null && data['businessName'].toString().isNotEmpty) {
+            userName = data['businessName'].toString();
+          } else if (data['organizationName'] != null && data['organizationName'].toString().isNotEmpty) {
+            userName = data['organizationName'].toString();
+          } else if (data['name'] != null && data['name'].toString().isNotEmpty) {
+            userName = data['name'].toString();
+          } else {
+            userName = '企業用戶';
+          }
+          debugPrint('企業帳號姓名解析: 企業名稱=$userName');
+        } else {
+          // 個人帳號顯示個人姓名
+          if (data['name'] != null && data['name'].toString().isNotEmpty) {
+            userName = data['name'].toString();
+          } else if (data['fullName'] != null && data['fullName'].toString().isNotEmpty) {
+            userName = data['fullName'].toString();
+          } else if (data['displayName'] != null && data['displayName'].toString().isNotEmpty) {
+            userName = data['displayName'].toString();
+          } else if (data['firstName'] != null || data['lastName'] != null) {
+            final firstName = data['firstName']?.toString() ?? '';
+            final lastName = data['lastName']?.toString() ?? '';
+            userName = '$firstName $lastName'.trim();
+            if (userName.isEmpty) userName = '個人用戶';
+          }
+          debugPrint('個人帳號姓名解析: 個人姓名=$userName');
+        }
+        
+        debugPrint('用戶類型: $accountType, 最終顯示名稱: $userName');
+        
         return {
           'id': uid,
-          'name': data['name'] ?? data['fullName'] ?? '用戶',
+          'name': userName,
           'email': data['email'],
           'phone': data['phone'],
           'avatar': avatarUrl,
-          'status': 'approved',
-          'rating': '0.00',
+          'status': verificationStatus,
+          'kycStatus': kycStatus,
+          'accountType': accountType,
+          'rating': '5.0',
         };
       } else {
         // 如果用戶文檔不存在，返回基本資料
@@ -94,8 +165,10 @@ class UserService {
           'email': null,
           'phone': null,
           'avatar': null,
-          'status': 'approved',
-          'rating': '0.00',
+          'status': 'pending',
+          'kycStatus': null,
+          'accountType': null,
+          'rating': '5.0',
         };
       }
     } catch (e) {
@@ -107,8 +180,10 @@ class UserService {
         'email': null,
         'phone': null,
         'avatar': null,
-        'status': 'approved',
-        'rating': '0.00',
+        'status': 'pending',
+        'kycStatus': null,
+        'accountType': null,
+        'rating': '5.0',
       };
     }
   }
@@ -268,14 +343,7 @@ class UserService {
       // 如果 KYC 狀態變為 approved，自動上架待審核的草稿活動
       final kycStatus = kycData['kycStatus'] as String?;
       if (kycStatus == 'approved') {
-        try {
-          final activityService = ActivityService();
-          await activityService.autoPublishKycPendingDrafts(uid);
-          debugPrint('自動上架 KYC 待審核草稿活動完成');
-        } catch (e) {
-          debugPrint('自動上架草稿活動失敗: $e');
-          // 不拋出異常，避免影響 KYC 狀態更新
-        }
+        await _handleKycApproved(uid);
       }
     } catch (e) {
       debugPrint('更新 KYC 資料時發生錯誤: $e');
@@ -363,14 +431,7 @@ class UserService {
       
       // 如果 KYC 狀態變為 approved，自動上架待審核的草稿活動
       if (status == 'approved') {
-        try {
-          final activityService = ActivityService();
-          await activityService.autoPublishKycPendingDrafts(uid);
-          debugPrint('自動上架 KYC 待審核草稿活動完成');
-        } catch (e) {
-          debugPrint('自動上架草稿活動失敗: $e');
-          // 不拋出異常，避免影響 KYC 狀態更新
-        }
+        await _handleKycApproved(uid);
       }
     } catch (e) {
       debugPrint('更新企業 KYC 狀態時發生錯誤: $e');
@@ -426,15 +487,19 @@ class UserService {
     }
   }
 
-  /// 刪除用戶所有數據（Firestore文檔和Storage文件）
+  /// 刪除用戶所有數據（Firestore文檔、Storage文件、發布的活動和報名記錄）
   Future<void> deleteUserData(String uid) async {
     try {
       debugPrint('開始刪除用戶數據: $uid');
       
-      // 並行執行刪除操作
+      // 創建 ActivityService 實例來處理活動相關數據
+      final activityService = ActivityService();
+      
+      // 並行執行所有刪除操作
       await Future.wait([
         _deleteUserDocument(uid),
         _deleteUserStorageFiles(uid),
+        activityService.deleteAllUserActivityData(uid), // 刪除用戶發布的活動和報名記錄
       ]);
       
       debugPrint('用戶數據刪除完成');
@@ -489,6 +554,102 @@ class UserService {
     } catch (e) {
       debugPrint('刪除Firebase Storage用戶文件時發生錯誤: $e');
       // 不拋出異常，讓其他刪除操作繼續進行
+    }
+  }
+
+  /// 統一處理KYC狀態變為approved的邏輯
+  /// 當個人或企業KYC狀態變為approved時調用
+  Future<void> _handleKycApproved(String uid) async {
+    try {
+      debugPrint('處理KYC審核通過: $uid');
+      
+      final activityService = ActivityService();
+      await activityService.autoPublishKycPendingDrafts(uid);
+      debugPrint('自動上架 KYC 待審核草稿活動完成');
+      
+      // 觸發我的活動頁面刷新，以顯示狀態變化
+      _triggerMyActivitiesRefresh();
+    } catch (e) {
+      debugPrint('處理KYC審核通過失敗: $e');
+      // 不拋出異常，避免影響主要流程
+    }
+  }
+
+  /// 開始監聽用戶KYC狀態變化
+  /// 用於檢測後端管理員直接更新KYC狀態的情況
+  void startKycStatusListener(String uid) {
+    try {
+      debugPrint('開始監聽用戶KYC狀態變化: $uid');
+      
+      // 停止之前的監聽器
+      stopKycStatusListener();
+      
+      _kycStatusListener = _firestore
+          .collection('users')
+          .doc(uid)
+          .snapshots()
+          .listen((snapshot) async {
+        if (snapshot.exists) {
+          final data = snapshot.data();
+          if (data != null) {
+            await _checkKycStatusChange(uid, data);
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('開始監聽KYC狀態失敗: $e');
+    }
+  }
+
+  /// 停止監聽KYC狀態變化
+  void stopKycStatusListener() {
+    _kycStatusListener?.cancel();
+    _kycStatusListener = null;
+    debugPrint('停止監聽KYC狀態變化');
+  }
+
+  /// 檢查KYC狀態變化並處理
+  Future<void> _checkKycStatusChange(String uid, Map<String, dynamic> userData) async {
+    try {
+      final accountType = userData['accountType'] as String?;
+      
+      if (accountType == 'business') {
+        // 檢查企業KYC狀態
+        final businessKycStatus = userData['businessKycStatus'] as String?;
+        
+        // 只有當狀態從非approved變為approved時才觸發
+        if (businessKycStatus == 'approved' && _lastBusinessKycStatus != 'approved') {
+          debugPrint('檢測到企業KYC狀態變為approved: $uid (從 $_lastBusinessKycStatus 變為 $businessKycStatus)');
+          await _handleKycApproved(uid);
+        }
+        
+        _lastBusinessKycStatus = businessKycStatus;
+      } else {
+        // 檢查個人KYC狀態
+        final personalKycStatus = userData['kyc']?['kycStatus'] as String?;
+        
+        // 只有當狀態從非approved變為approved時才觸發
+        if (personalKycStatus == 'approved' && _lastPersonalKycStatus != 'approved') {
+          debugPrint('檢測到個人KYC狀態變為approved: $uid (從 $_lastPersonalKycStatus 變為 $personalKycStatus)');
+          await _handleKycApproved(uid);
+        }
+        
+        _lastPersonalKycStatus = personalKycStatus;
+      }
+    } catch (e) {
+      debugPrint('檢查KYC狀態變化失敗: $e');
+    }
+  }
+
+  /// 觸發我的活動頁面刷新
+  /// 當KYC狀態變為approved並自動上架活動後調用
+  void _triggerMyActivitiesRefresh() {
+    try {
+      debugPrint('觸發我的活動頁面刷新');
+      MyActivitiesPageController.refreshActivities();
+    } catch (e) {
+      debugPrint('觸發我的活動頁面刷新失敗: $e');
+      // 不拋出異常，避免影響主要流程
     }
   }
 

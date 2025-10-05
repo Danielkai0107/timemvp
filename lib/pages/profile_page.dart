@@ -14,6 +14,24 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
+/// 全域的 ProfilePage 狀態控制器
+class ProfilePageController {
+  static _ProfilePageState? _currentState;
+  
+  static void _register(_ProfilePageState state) {
+    _currentState = state;
+  }
+  
+  static void _unregister() {
+    _currentState = null;
+  }
+  
+  /// 觸發重新載入用戶資料
+  static void refreshProfile() {
+    _currentState?._refreshFromExternal();
+  }
+}
+
 class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
@@ -27,7 +45,18 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    
+    // 註冊到全域控制器
+    ProfilePageController._register(this);
+    
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    // 從全域控制器註銷
+    ProfilePageController._unregister();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -103,6 +132,12 @@ class _ProfilePageState extends State<ProfilePage> {
       _isLoading = true;
     });
     await _loadUserData();
+  }
+
+  /// 從外部觸發的重整方法
+  Future<void> _refreshFromExternal() async {
+    debugPrint('=== 從外部觸發個人資料重整 ===');
+    await _refreshUserData();
   }
 
   /// 導向編輯個人資料頁面
