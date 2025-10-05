@@ -147,6 +147,52 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     await _refreshActivities();
   }
 
+  /// 獲取實際的報名狀態（考慮活動是否已結束）
+  ActivityStatus? _getActualRegistrationStatus(
+    Map<String, dynamic> registration, 
+    Map<String, dynamic> activity
+  ) {
+    final registrationStatus = registration['status'] as String? ?? 'registered';
+    final activityStatus = activity['status'] as String?;
+    final activityType = activity['type'] as String? ?? 'event';
+    final endDateTime = activity['endDateTime'] as String?;
+    
+    // 如果報名狀態已經是 ended 或 cancelled，直接返回
+    if (registrationStatus == 'ended') {
+      return ActivityStatus.ended;
+    }
+    if (registrationStatus == 'cancelled') {
+      return ActivityStatus.cancelled;
+    }
+    
+    // 檢查活動是否已結束
+    bool isActivityEnded = false;
+    
+    // 1. 檢查活動狀態是否為 ended
+    if (activityStatus == 'ended') {
+      isActivityEnded = true;
+    }
+    
+    // 2. 檢查是否超過活動結束時間
+    if (!isActivityEnded && endDateTime != null) {
+      try {
+        final endTime = DateTime.parse(endDateTime);
+        final now = DateTime.now();
+        isActivityEnded = now.isAfter(endTime);
+      } catch (e) {
+        debugPrint('解析活動結束時間失敗: $e');
+      }
+    }
+    
+    // 如果活動已結束，但報名狀態還是 registered，則顯示為已結束
+    if (isActivityEnded && registrationStatus == 'registered') {
+      return ActivityStatus.ended;
+    }
+    
+    // 否則使用原始的狀態判斷邏輯
+    return ActivityStatusUtils.fromString(registrationStatus, activityType);
+  }
+
   /// 應用篩選
   void _applyFilters() {
     // 篩選報名活動
@@ -156,11 +202,9 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       
       // 狀態篩選
       if (_selectedRegisteredStatus != null) {
-        final statusString = registration['status'] as String? ?? 'registered';
-        final activityType = activity['type'] as String? ?? 'event';
-        final status = ActivityStatusUtils.fromString(statusString, activityType);
+        final actualStatus = _getActualRegistrationStatus(registration, activity);
         
-        if (status?.name != _selectedRegisteredStatus) {
+        if (actualStatus?.name != _selectedRegisteredStatus) {
           return false;
         }
       }
@@ -180,15 +224,11 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     _filteredRegisteredActivities.sort((a, b) {
       final registrationA = a['registration'] as Map<String, dynamic>;
       final activityA = a['activity'] as Map<String, dynamic>;
-      final statusStringA = registrationA['status'] as String? ?? 'registered';
-      final activityTypeA = activityA['type'] as String? ?? 'event';
-      final statusA = ActivityStatusUtils.fromString(statusStringA, activityTypeA);
+      final statusA = _getActualRegistrationStatus(registrationA, activityA);
       
       final registrationB = b['registration'] as Map<String, dynamic>;
       final activityB = b['activity'] as Map<String, dynamic>;
-      final statusStringB = registrationB['status'] as String? ?? 'registered';
-      final activityTypeB = activityB['type'] as String? ?? 'event';
-      final statusB = ActivityStatusUtils.fromString(statusStringB, activityTypeB);
+      final statusB = _getActualRegistrationStatus(registrationB, activityB);
       
       // 檢查是否為已取消或已結束狀態
       final isInactiveA = statusA == ActivityStatus.cancelled || statusA == ActivityStatus.ended;

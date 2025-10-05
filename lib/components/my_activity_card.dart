@@ -141,6 +141,51 @@ class MyActivityCard extends StatelessWidget {
 
 /// 我的活動卡片建構器
 class MyActivityCardBuilder {
+  /// 獲取實際的報名狀態（考慮活動是否已結束）
+  static ActivityStatus? _getActualRegistrationStatus(
+    Map<String, dynamic> registration, 
+    Map<String, dynamic> activity
+  ) {
+    final registrationStatus = registration['status'] as String? ?? 'registered';
+    final activityStatus = activity['status'] as String?;
+    final activityType = activity['type'] as String? ?? 'event';
+    final endDateTime = activity['endDateTime'] as String?;
+    
+    // 如果報名狀態已經是 ended 或 cancelled，直接返回
+    if (registrationStatus == 'ended') {
+      return ActivityStatus.ended;
+    }
+    if (registrationStatus == 'cancelled') {
+      return ActivityStatus.cancelled;
+    }
+    
+    // 檢查活動是否已結束
+    bool isActivityEnded = false;
+    
+    // 1. 檢查活動狀態是否為 ended
+    if (activityStatus == 'ended') {
+      isActivityEnded = true;
+    }
+    
+    // 2. 檢查是否超過活動結束時間
+    if (!isActivityEnded && endDateTime != null) {
+      try {
+        final endTime = DateTime.parse(endDateTime);
+        final now = DateTime.now();
+        isActivityEnded = now.isAfter(endTime);
+      } catch (e) {
+        debugPrint('解析活動結束時間失敗: $e');
+      }
+    }
+    
+    // 如果活動已結束，但報名狀態還是 registered，則顯示為已結束
+    if (isActivityEnded && registrationStatus == 'registered') {
+      return ActivityStatus.ended;
+    }
+    
+    // 否則使用原始的狀態判斷邏輯
+    return ActivityStatusUtils.fromString(registrationStatus, activityType);
+  }
   /// 從報名記錄創建活動卡片
   static Widget fromRegistration({
     required Map<String, dynamic> registrationData,
@@ -155,13 +200,12 @@ class MyActivityCardBuilder {
     debugPrint('報名資料: $registration');
     debugPrint('活動資料: $activity');
     
-    // 解析狀態
-    final statusString = registration['status'] as String? ?? 'registered';
+    // 解析狀態 - 使用實際狀態判斷邏輯
     final activityType = activity['type'] as String? ?? 'event';
-    final status = ActivityStatusUtils.fromString(statusString, activityType) 
+    final status = _getActualRegistrationStatus(registration, activity) 
         ?? ActivityStatus.registrationSuccess;
     
-    debugPrint('狀態解析: $statusString -> ${status.displayName}');
+    debugPrint('狀態解析: ${registration['status']} -> ${status.displayName}');
     
     // 解析日期時間 - 優先處理 startDateTime
     String? startDate;

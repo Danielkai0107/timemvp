@@ -6,6 +6,7 @@ import '../components/design_system/success_popup.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/activity_status_badge.dart';
 import '../components/design_system/registration_status_popup.dart';
+import '../components/design_system/activity_rating_popup.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
 import 'my_activities_page.dart';
@@ -42,6 +43,10 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   YoutubePlayerController? _youtubeController;
   bool _isTopBarVisible = true;
   int _currentImageIndex = 0;
+  List<Map<String, dynamic>> _activityRatings = [];
+  bool _isLoadingRatings = false;
+  List<Map<String, dynamic>> _organizerRatings = [];
+  bool _isLoadingOrganizerRatings = false;
 
   @override
   void initState() {
@@ -66,6 +71,9 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     
     // 總是從Firebase獲取最新數據，確保數據準確性
     _loadActivityDetail();
+    
+    // 檢查是否需要顯示評分彈窗
+    _checkAndShowRatingPopup();
   }
 
   @override
@@ -92,6 +100,12 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
         // 檢查報名狀態
         await _checkRegistrationStatus();
         
+        // 載入評分數據
+        await _loadActivityRatings();
+        
+        // 載入發布者評分數據
+        await _loadOrganizerRatings();
+        
         if (activity != null) {
           debugPrint('活動詳情載入成功: ${activity['name']}');
         } else {
@@ -117,6 +131,101 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       _isMyActivity = activityUserId == currentUserId;
       debugPrint('檢查活動所有者: activityUserId=$activityUserId, currentUserId=$currentUserId, isMyActivity=$_isMyActivity');
     }
+  }
+
+  /// 載入活動評分數據
+  Future<void> _loadActivityRatings() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingRatings = true;
+    });
+
+    try {
+      final ratings = await _activityService.getActivityRatings(
+        activityId: widget.activityId,
+        limit: 10,
+      );
+
+      if (mounted) {
+        setState(() {
+          _activityRatings = ratings;
+          _isLoadingRatings = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('載入活動評分失敗: $e');
+      if (mounted) {
+        setState(() {
+          _activityRatings = [];
+          _isLoadingRatings = false;
+        });
+      }
+    }
+  }
+
+  /// 載入發布者評分數據
+  Future<void> _loadOrganizerRatings() async {
+    if (!mounted || _activity == null) return;
+    
+    final organizerId = _activity!['userId'] as String?;
+    if (organizerId == null) return;
+    
+    setState(() {
+      _isLoadingOrganizerRatings = true;
+    });
+
+    try {
+      final ratings = await _activityService.getUserReceivedRatings(
+        userId: organizerId,
+        limit: 5, // 只顯示最近5個評分
+      );
+
+      if (mounted) {
+        setState(() {
+          _organizerRatings = ratings;
+          _isLoadingOrganizerRatings = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('載入發布者評分失敗: $e');
+      if (mounted) {
+        setState(() {
+          _organizerRatings = [];
+          _isLoadingOrganizerRatings = false;
+        });
+      }
+    }
+  }
+
+  /// 計算發布者的平均評分
+  double _calculateOrganizerAverageRating() {
+    if (_organizerRatings.isEmpty) {
+      // 如果沒有評分記錄，使用用戶資料中的評分
+      final user = _activity!['user'];
+      if (user != null && user['rating'] != null) {
+        return double.tryParse(user['rating'].toString()) ?? 5.0;
+      }
+      return 5.0;
+    }
+
+    // 從評分記錄計算平均評分
+    double totalRating = 0.0;
+    int ratingCount = 0;
+
+    for (final rating in _organizerRatings) {
+      final userRating = rating['userRating'] as int?;
+      if (userRating != null) {
+        totalRating += userRating.toDouble();
+        ratingCount++;
+      }
+    }
+
+    if (ratingCount == 0) {
+      return 5.0;
+    }
+
+    return totalRating / ratingCount;
   }
 
   Future<void> _checkRegistrationStatus() async {
@@ -288,6 +397,30 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
                             
                             // 活動介紹
                             _buildDescription(),
+                            
+                            // 過去評價區塊
+                            if (_activityRatings.isNotEmpty) ...[
+                              const SizedBox(height: 32),
+                              _buildDivider(),
+                              const SizedBox(height: 32),
+                              _buildPastRatingsSection(),
+                            ],
+                            
+                            // 發布者過去評價區塊
+                            if (_organizerRatings.isNotEmpty) ...[
+                              const SizedBox(height: 32),
+                              _buildDivider(),
+                              const SizedBox(height: 32),
+                              _buildOrganizerPastRatingsSection(),
+                            ],
+                            
+                            // 提前結束按鈕（只有活動主辦者且活動進行中時顯示）
+                            if (_shouldShowEarlyEndButton()) ...[
+                              const SizedBox(height: 32),
+                              _buildDivider(),
+                              const SizedBox(height: 32),
+                              _buildEarlyEndButton(),
+                            ],
                             
                             // 底部按鈕留空間
                             const SizedBox(height: 90),
@@ -699,7 +832,8 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   Widget _buildOrganizerCard() {
     final user = _activity!['user'];
     final organizerName = user != null ? user['name'] ?? '主辦者' : '主辦者';
-    final organizerRating = user != null ? user['rating'] ?? '5.0' : '5.0';
+    // 使用計算出的平均評分，而不是用戶資料中的評分
+    final organizerRating = _calculateOrganizerAverageRating();
     final avatarUrl = user != null ? user['avatar'] : null;
     final userStatus = user != null ? user['status'] ?? 'pending' : 'pending';
     final kycStatus = user != null ? user['kycStatus'] : null;
@@ -712,7 +846,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     debugPrint('當前用戶ID: ${_currentUser?.uid}');
     debugPrint('是否為我的活動: $_isMyActivity');
     debugPrint('主辦者姓名: $organizerName');
-    debugPrint('主辦者評分: $organizerRating');
+    debugPrint('主辦者評分: ${organizerRating.toStringAsFixed(1)} (計算自 ${_organizerRatings.length} 個評分)');
     debugPrint('頭像URL: $avatarUrl');
     debugPrint('用戶狀態: $userStatus');
     debugPrint('KYC 狀態: $kycStatus');
@@ -783,20 +917,28 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
                 Row(
                   children: [
                     ...List.generate(5, (index) {
-                      final rating = double.tryParse(organizerRating.toString()) ?? 5.0;
                       return Icon(
-                        index < rating.floor() ? Icons.star : Icons.star_border,
+                        index < organizerRating.floor() ? Icons.star : Icons.star_border,
                         size: 16,
                         color: Colors.orange.shade400,
                       );
                     }),
                     const SizedBox(width: 8),
                     Text(
-                      organizerRating.toString(),
+                      organizerRating.toStringAsFixed(1),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${_organizerRatings.length})',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -984,6 +1126,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   }
 
   Widget _buildTopBarActionButton() {
+    // 如果活動已結束或已取消，不顯示任何操作按鈕
+    if (_isActivityEndedOrCancelled()) {
+      return const SizedBox.shrink();
+    }
+
     if (_isMyActivity) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -1011,7 +1158,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
               height: 52.0,
               style: CustomButtonStyle.outline,
               borderColor: _isActivityDraft() ? AppColors.success700 : AppColors.grey300,
-              textColor: _isActivityDraft() ? AppColors.success900 : AppColors.grey500,
+              textColor: _isActivityDraft() ? AppColors.success900 : AppColors.grey700,
               borderWidth: 1.5,
               borderRadius: 40.0,
               fontSize: 16,
@@ -1033,6 +1180,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
   }
 
   Widget _buildBottomBar() {
+    // 如果活動已結束或已取消，直接隱藏整個底部bar
+    if (_isActivityEndedOrCancelled()) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1200,6 +1352,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       ),
     );
   }
+
 
   List<String> _getActivityImages() {
     List<String> images = [];
@@ -1520,6 +1673,34 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     return _activity!['status'] == 'draft';
   }
 
+  /// 檢查活動是否已結束或已取消
+  bool _isActivityEndedOrCancelled() {
+    if (_activity == null) return false;
+    
+    final status = _activity!['status'] as String?;
+    
+    // 檢查活動狀態
+    if (status == 'ended' || status == 'cancelled') {
+      return true;
+    }
+    
+    // 檢查是否超過活動結束時間
+    final endDateTime = _activity!['endDateTime'] as String?;
+    if (endDateTime != null) {
+      try {
+        final endTime = DateTime.parse(endDateTime);
+        final now = DateTime.now();
+        if (now.isAfter(endTime)) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint('解析活動結束時間失敗: $e');
+      }
+    }
+    
+    return false;
+  }
+
   /// 切換活動的發布狀態
   Future<void> _togglePublishStatus() async {
     if (_activity == null) return;
@@ -1562,6 +1743,708 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     } catch (e) {
       if (mounted) {
         CustomSnackBarBuilder.error(context, '切換狀態失敗: $e');
+      }
+    }
+  }
+
+  /// 檢查並顯示評分彈窗
+  Future<void> _checkAndShowRatingPopup() async {
+    if (_currentUser == null) return;
+    
+    try {
+      // 延遲一點時間，確保頁面已經完全載入
+      await Future.delayed(const Duration(milliseconds: 1500));
+      
+      if (!mounted) return;
+      
+      final shouldShow = await _activityService.shouldShowRatingPopup(
+        userId: _currentUser!.uid,
+        activityId: widget.activityId,
+      );
+      
+      if (shouldShow && mounted) {
+        _showRatingPopup();
+      }
+    } catch (e) {
+      debugPrint('檢查評分彈窗失敗: $e');
+    }
+  }
+
+  /// 顯示評分彈窗
+  void _showRatingPopup() {
+    if (_activity == null) return;
+    
+    // 準備主辦方列表
+    final organizers = <Map<String, dynamic>>[];
+    
+    // 添加活動發布者
+    final user = _activity!['user'];
+    if (user != null) {
+      organizers.add({
+        'userId': _activity!['userId'],
+        'name': user['name'] ?? '主辦者',
+        'avatar': user['avatar'],
+      });
+    }
+    
+    // 如果沒有主辦方資訊，不顯示評分彈窗
+    if (organizers.isEmpty) {
+      debugPrint('沒有主辦方資訊，無法顯示評分彈窗');
+      return;
+    }
+    
+    ActivityRatingPopupBuilder.show(
+      context,
+      activityId: widget.activityId,
+      activityName: _activity!['name'] ?? '活動',
+      organizers: organizers,
+      onSubmit: _handleRatingSubmit,
+      onSkip: () {
+        debugPrint('用戶跳過評分');
+      },
+    );
+  }
+
+  /// 處理評分提交
+  Future<void> _handleRatingSubmit(Map<String, dynamic> ratings, String? comment) async {
+    if (_currentUser == null) return;
+    
+    try {
+      await _activityService.submitActivityRating(
+        activityId: widget.activityId,
+        raterId: _currentUser!.uid,
+        ratings: ratings,
+        comment: comment,
+      );
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // 關閉評分彈窗
+        CustomSnackBarBuilder.success(context, '評分提交成功，謝謝您的回饋！');
+        
+        // 重新載入評分數據
+        await _loadActivityRatings();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // 關閉評分彈窗
+        CustomSnackBarBuilder.error(context, '評分提交失敗: $e');
+      }
+    }
+  }
+
+  /// 建構過去評價區塊
+  Widget _buildPastRatingsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 標題
+        Row(
+          children: [
+            Icon(
+              Icons.star_outline,
+              size: 20,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              '過去評價',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_activityRatings.length} 則評價',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // 評價列表
+        if (_isLoadingRatings)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else
+          Column(
+            children: _activityRatings.map((rating) => _buildRatingItem(rating)).toList(),
+          ),
+      ],
+    );
+  }
+
+  /// 建構單個評價項目
+  Widget _buildRatingItem(Map<String, dynamic> rating) {
+    final rater = rating['rater'] as Map<String, dynamic>?;
+    final raterName = rater?['name'] as String? ?? '匿名用戶';
+    final raterAvatar = rater?['avatar'] as String?;
+    final comment = rating['comment'] as String?;
+    final ratings = rating['ratings'] as Map<String, dynamic>? ?? {};
+    final createdAt = rating['createdAt'] as String?;
+    
+    // 計算平均評分
+    double averageRating = 0.0;
+    if (ratings.isNotEmpty) {
+      final totalRating = ratings.values.fold<double>(0.0, (sum, rating) => sum + (rating as num).toDouble());
+      averageRating = totalRating / ratings.length;
+    }
+    
+    // 格式化日期
+    String formattedDate = '';
+    if (createdAt != null) {
+      try {
+        final date = DateTime.parse(createdAt);
+        formattedDate = '${date.year}/${date.month}/${date.day}';
+      } catch (e) {
+        formattedDate = '';
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 評價者資訊和評分
+          Row(
+            children: [
+              // 頭像
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.grey300,
+                  image: raterAvatar != null && raterAvatar.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(raterAvatar),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: raterAvatar == null || raterAvatar.isEmpty
+                    ? Icon(
+                        Icons.person,
+                        color: AppColors.grey700,
+                        size: 24,
+                      )
+                    : null,
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // 姓名和評分
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      raterName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        // 星星評分
+                        ...List.generate(5, (index) {
+                          return Icon(
+                            index < averageRating.floor() ? Icons.star : Icons.star_border,
+                            size: 14,
+                            color: Colors.orange.shade400,
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        Text(
+                          averageRating.toStringAsFixed(1),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              // 日期
+              if (formattedDate.isNotEmpty)
+                Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+            ],
+          ),
+          
+          // 評論內容
+          if (comment != null && comment.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              comment,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 建構發布者過去評價區塊
+  Widget _buildOrganizerPastRatingsSection() {
+    final user = _activity!['user'];
+    final organizerName = user != null ? user['name'] ?? '主辦者' : '主辦者';
+    
+    // 從實際評分記錄計算平均評分
+    final averageRating = _calculateOrganizerAverageRating();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 標題
+        Row(
+          children: [
+            Icon(
+              Icons.verified_user_outlined,
+              size: 20,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$organizerName 的過去評價',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            // 總體評分（從實際評分記錄計算）
+            Row(
+              children: [
+                Icon(
+                  Icons.star,
+                  size: 16,
+                  color: Colors.orange.shade400,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  averageRating.toStringAsFixed(1),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '(${_organizerRatings.length})',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // 評價列表 - 改為水平滑動
+        if (_isLoadingOrganizerRatings)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_organizerRatings.isNotEmpty)
+          SizedBox(
+            height: 200, // 增加高度
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 0),
+              itemCount: _organizerRatings.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index == _organizerRatings.length - 1 ? 0 : 12,
+                  ),
+                  child: _buildOrganizerRatingItem(_organizerRatings[index]),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 建構發布者評價項目
+  Widget _buildOrganizerRatingItem(Map<String, dynamic> rating) {
+    final rater = rating['rater'] as Map<String, dynamic>?;
+    final raterName = rater?['name'] as String? ?? '匿名用戶';
+    final raterAvatar = rater?['avatar'] as String?;
+    final comment = rating['comment'] as String?;
+    final userRating = rating['userRating'] as int? ?? 5;
+    // final activity = rating['activity'] as Map<String, dynamic>?;
+    // final activityName = activity?['name'] as String? ?? '活動';
+    final createdAt = rating['createdAt'] as String?;
+    
+    // 格式化日期
+    String formattedDate = '';
+    if (createdAt != null) {
+      try {
+        final date = DateTime.parse(createdAt);
+        formattedDate = '${date.month}/${date.day}';
+      } catch (e) {
+        formattedDate = '';
+      }
+    }
+
+    return Container(
+      width: 240, // 增加寬度到160px
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white, // 白色背景
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.grey300), // 灰框
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 評價者頭像和姓名
+          Row(
+            children: [
+              // 頭像
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.grey300,
+                  image: raterAvatar != null && raterAvatar.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(raterAvatar),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: raterAvatar == null || raterAvatar.isEmpty
+                    ? Icon(
+                        Icons.person,
+                        color: AppColors.grey700,
+                        size: 20,
+                      )
+                    : null,
+              ),
+              
+              const SizedBox(width: 8),
+              
+              // 姓名
+              Expanded(
+                child: Text(
+                  raterName,
+                  style: const TextStyle(
+                    fontSize: 14, // 統一字體14px
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // 星星評分
+          Row(
+            children: [
+              ...List.generate(5, (index) {
+                return Icon(
+                  index < userRating ? Icons.star : Icons.star_border,
+                  size: 14,
+                  color: Colors.orange.shade400,
+                );
+              }),
+              const SizedBox(width: 6),
+              Text(
+                userRating.toString(),
+                style: TextStyle(
+                  fontSize: 14, // 統一字體14px
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // 評論內容
+          if (comment != null && comment.isNotEmpty)
+            Expanded(
+              child: Text(
+                comment,
+                style: TextStyle(
+                  fontSize: 14, // 統一字體14px
+                  color: Colors.grey.shade700,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+          else
+            Expanded(
+              child: Text(
+                '很棒很活潑很開心良好的體驗',
+                style: TextStyle(
+                  fontSize: 14, // 統一字體14px
+                  color: Colors.grey.shade500,
+                  height: 1.3,
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          
+          const SizedBox(height: 8),
+          
+          // 日期
+          if (formattedDate.isNotEmpty)
+            Text(
+              formattedDate,
+              style: TextStyle(
+                fontSize: 14, // 統一字體14px
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 檢查是否應顯示提前結束按鈕
+  bool _shouldShowEarlyEndButton() {
+    // 必須是活動主辦者
+    if (!_isMyActivity) return false;
+    
+    // 活動必須存在
+    if (_activity == null) return false;
+    
+    // 活動狀態必須是 active（已上架）
+    final status = _activity!['status'] as String?;
+    if (status != 'active') return false;
+    
+    // 檢查活動是否還在進行中（未到結束時間）
+    final endDateTime = _activity!['endDateTime'] as String?;
+    if (endDateTime == null) return false;
+    
+    try {
+      final endTime = DateTime.parse(endDateTime);
+      final now = DateTime.now();
+      
+      // 只有在活動還未結束時才顯示提前結束按鈕
+      return now.isBefore(endTime);
+    } catch (e) {
+      debugPrint('解析活動結束時間失敗: $e');
+      return false;
+    }
+  }
+
+  /// 建構提前結束按鈕
+  Widget _buildEarlyEndButton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 標題
+        Row(
+          children: [
+            Icon(
+              Icons.stop_circle_outlined,
+              size: 20,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              '活動管理',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // 說明文字
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.grey100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.grey300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '提前結束活動',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '如果活動需要提前結束，點擊下方按鈕。活動結束後，參與者將可以進行評分。',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // 提前結束按鈕
+        SizedBox(
+          width: double.infinity,
+          child: CustomButton(
+            onPressed: _showEarlyEndConfirmDialog,
+            text: '提前結束活動',
+            style: CustomButtonStyle.outline,
+            borderColor: AppColors.error900,
+            textColor: AppColors.error900,
+            height: 52,
+            borderWidth: 1.5,
+            icon: const Icon(Icons.stop_circle_outlined),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 顯示提前結束確認對話框
+  void _showEarlyEndConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認提前結束活動'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('您確定要提前結束這個活動嗎？'),
+            const SizedBox(height: 12),
+            Text(
+              '• 活動狀態將變更為「已結束」\n• 參與者將收到評分邀請\n• 此操作無法撤銷',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _handleEarlyEndActivity();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error900,
+            ),
+            child: const Text('確認結束'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 處理提前結束活動
+  Future<void> _handleEarlyEndActivity() async {
+    try {
+      debugPrint('=== 開始提前結束活動 ===');
+      debugPrint('活動ID: ${widget.activityId}');
+      
+      // 顯示載入狀態
+      if (mounted) {
+        CustomSnackBarBuilder.info(context, '正在結束活動並更新報名者狀態...');
+      }
+
+      // 使用新的提前結束方法，會同時更新活動和報名者狀態
+      await _activityService.endActivityEarly(
+        activityId: widget.activityId,
+      );
+
+      debugPrint('活動和報名者狀態已全部更新為已結束');
+
+      if (mounted) {
+        // 重新載入活動詳情
+        await _loadActivityDetail();
+        
+        CustomSnackBarBuilder.success(context, '活動已提前結束，所有報名者狀態已更新');
+        
+        // 觸發我的活動頁面重整
+        MyActivitiesPageController.refreshActivities();
+        
+        // 觸發首頁重整
+        HomePageController.refreshActivities();
+        
+        // 延遲一下後檢查是否需要顯示評分彈窗給參與者
+        // 注意：這裡不會顯示給主辦者，因為主辦者不會評分自己的活動
+        debugPrint('活動提前結束完成，參與者稍後可以進行評分');
+      }
+    } catch (e) {
+      debugPrint('提前結束活動失敗: $e');
+      if (mounted) {
+        CustomSnackBarBuilder.error(context, '提前結束活動失敗: $e');
       }
     }
   }
