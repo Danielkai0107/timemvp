@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../components/design_system/app_colors.dart';
 import '../components/design_system/custom_snackbar.dart';
+import '../components/design_system/user_profile_popup.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import 'login_page.dart';
@@ -397,19 +398,22 @@ class _ProfilePageState extends State<ProfilePage> {
               Center(
                 child: Column(
                   children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary100,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.primary300,
-                          width: 2,
+                    GestureDetector(
+                      onTap: _showUserProfilePopup,
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary100,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary300,
+                            width: 2,
+                          ),
                         ),
-                      ),
-                      child: ClipOval(
-                        child: _buildProfileAvatar(),
+                        child: ClipOval(
+                          child: _buildProfileAvatar(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -793,5 +797,48 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
     }
+  }
+
+  /// 顯示用戶資料卡片彈窗
+  void _showUserProfilePopup() {
+    if (_currentUser == null) return;
+    
+    // 獲取頭像URL（使用與個人資料頁面相同的邏輯）
+    String? avatarUrl = _getAvatarUrl();
+    
+    // 準備用戶數據
+    final userData = <String, dynamic>{
+      'id': _currentUser!.uid,
+      'name': _userData?['name'] ?? _currentUser!.email?.split('@')[0] ?? '用戶',
+      'avatar': avatarUrl,
+      'status': _userData?['status'] ?? 'pending',
+      'kycStatus': _kycStatus,
+      'accountType': _accountType,
+      'rating': _userData?['rating']?.toString() ?? '5.0',
+      'participantRating': _userData?['participantRating'] ?? 5.0,
+      'participantRatingCount': _userData?['participantRatingCount'] ?? 0,
+    };
+    
+    UserProfilePopupBuilder.show(
+      context,
+      userId: _currentUser!.uid,
+      initialUserData: userData,
+    );
+  }
+
+  /// 獲取頭像URL（與個人資料頁面使用相同邏輯）
+  String? _getAvatarUrl() {
+    // 優先檢查新的 avatar 欄位
+    if (_userData != null && _userData!['avatar'] != null && _userData!['avatar'].toString().isNotEmpty) {
+      return _userData!['avatar'] as String;
+    }
+    // 檢查舊的 profileImages 欄位
+    else if (_userData != null && _userData!['profileImages'] != null) {
+      final profileImages = _userData!['profileImages'] as List<dynamic>?;
+      if (profileImages != null && profileImages.isNotEmpty) {
+        return profileImages.first as String;
+      }
+    }
+    return null;
   }
 }

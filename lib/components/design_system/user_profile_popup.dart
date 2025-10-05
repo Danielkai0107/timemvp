@@ -634,7 +634,7 @@ class _UserProfilePopupState extends State<UserProfilePopup>
         const SizedBox(height: 12),
         
         SizedBox(
-          height: 160,
+          height: 200, // 增加高度以容納更多文字
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 0),
@@ -675,7 +675,7 @@ class _UserProfilePopupState extends State<UserProfilePopup>
     }
 
     return Container(
-      width: 200,
+      width: 240, // 增加寬度以容納更多文字
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -754,7 +754,7 @@ class _UserProfilePopupState extends State<UserProfilePopup>
           const SizedBox(height: 8),
           
           // 評論內容
-          Expanded(
+          Flexible(
             child: Text(
               comment?.isNotEmpty == true 
                   ? comment! 
@@ -767,8 +767,7 @@ class _UserProfilePopupState extends State<UserProfilePopup>
                     ? FontStyle.normal 
                     : FontStyle.italic,
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+              // 移除 maxLines 和 overflow 限制，讓文字完整顯示
             ),
           ),
           
