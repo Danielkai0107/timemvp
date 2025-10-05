@@ -100,8 +100,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     _participantsController.text = _maxParticipants.toString();
     // 初始化價格控制器
     _priceController.text = _price.toString();
+    // 設定預設值
+    _activityType = 'individual'; // 預設為"舉辦活動"
+    _hostingMethod = 'offline'; // 預設為"實體"
     // 檢查用戶狀態
     _checkUserStatus();
+    // 載入預設活動類型的分類
+    _loadCategories();
   }
 
   @override
@@ -935,7 +940,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             const SizedBox(height: 32),
             
             _buildOptionCard(
-              title: '單辦活動 / 開課程',
+              title: '舉辦活動',
               icon: Icons.person,
               isSelected: _activityType == 'individual',
               onTap: () {
@@ -950,7 +955,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             const SizedBox(height: 16),
             
             _buildOptionCard(
-              title: '找幫手 / 任務委託',
+              title: '任務委託',
               icon: Icons.people,
               isSelected: _activityType == 'group',
               onTap: () {
