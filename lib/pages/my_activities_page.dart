@@ -6,6 +6,7 @@ import '../components/design_system/custom_snackbar.dart';
 import '../components/my_activity_card.dart';
 import '../services/activity_service.dart';
 import '../services/auth_service.dart';
+import '../services/category_service.dart';
 import 'activity_detail_page.dart';
 
 class MyActivitiesPage extends StatefulWidget {
@@ -38,6 +39,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
   late TabController _tabController;
   final ActivityService _activityService = ActivityService();
   final AuthService _authService = AuthService();
+  final CategoryService _categoryService = CategoryService();
   
   bool _isLoading = false;
   List<Map<String, dynamic>> _registeredActivities = [];
@@ -50,6 +52,10 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
   String? _selectedRegisteredStatus;
   String? _selectedPublishedStatus;
   String? _selectedCategory;
+  
+  // 分類相關
+  List<Category> _allCategories = [];
+  bool _isLoadingCategories = false;
 
   @override
   void initState() {
@@ -70,6 +76,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     });
     
     _loadActivities();
+    _loadCategories();
   }
 
   @override
@@ -79,6 +86,52 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     _tabController.dispose();
     super.dispose();
   }
+
+  /// 載入分類數據
+  Future<void> _loadCategories() async {
+    setState(() {
+      _isLoadingCategories = true;
+    });
+
+    try {
+      debugPrint('載入所有分類數據...');
+      final categories = await _categoryService.getAllCategories();
+      
+      if (mounted) {
+        setState(() {
+          _allCategories = categories;
+          _isLoadingCategories = false;
+        });
+      }
+      
+      debugPrint('從 Firebase 載入了 ${categories.length} 個分類');
+    } catch (e) {
+      debugPrint('從 Firebase 載入分類失敗: $e');
+      
+      // 只有在 Firebase 完全失敗時才使用備用數據
+      try {
+        final fallbackCategories = await _categoryService.getCategoriesWithFallback();
+        
+        if (mounted) {
+          setState(() {
+            _allCategories = fallbackCategories;
+            _isLoadingCategories = false;
+          });
+        }
+        
+        debugPrint('使用備用分類數據，載入了 ${fallbackCategories.length} 個分類');
+      } catch (fallbackError) {
+        debugPrint('備用分類數據也載入失敗: $fallbackError');
+        if (mounted) {
+          setState(() {
+            _isLoadingCategories = false;
+            _allCategories = [];
+          });
+        }
+      }
+    }
+  }
+
 
   /// 載入活動數據
   Future<void> _loadActivities() async {
@@ -329,12 +382,28 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
 
   /// 獲取類別篩選選項
   List<DropdownItem<String>> _getCategoryOptions() {
-    return const [
-      DropdownItem(value: 'EventCategory_language_teaching', label: '語言教學'),
-      DropdownItem(value: 'EventCategory_skill_experience', label: '技能體驗'),
-      DropdownItem(value: 'EventCategory_event_support', label: '活動支援'),
-      DropdownItem(value: 'EventCategory_life_service', label: '生活服務'),
-    ];
+    if (_isLoadingCategories || _allCategories.isEmpty) {
+      // 載入中或沒有分類時，返回預設選項
+      return const [
+        DropdownItem(value: 'EventCategory_language_teaching', label: '活動 - 語言教學'),
+        DropdownItem(value: 'EventCategory_skill_experience', label: '活動 - 技能體驗'),
+        DropdownItem(value: 'EventCategory_event_support', label: '活動 - 活動支援'),
+        DropdownItem(value: 'EventCategory_life_service', label: '活動 - 生活服務'),
+        DropdownItem(value: 'TaskCategory_event_support', label: '任務 - 活動支援'),
+        DropdownItem(value: 'TaskCategory_life_service', label: '任務 - 生活服務'),
+        DropdownItem(value: 'TaskCategory_skill_sharing', label: '任務 - 技能分享'),
+        DropdownItem(value: 'TaskCategory_creative_work', label: '任務 - 創意工作'),
+      ];
+    }
+
+    // 使用動態載入的分類
+    return _allCategories.map((category) {
+      final typeLabel = category.type == 'event' ? '活動' : '任務';
+      return DropdownItem(
+        value: category.name,
+        label: '$typeLabel - ${category.displayName}',
+      );
+    }).toList();
   }
 
   /// 處理活動卡片點擊

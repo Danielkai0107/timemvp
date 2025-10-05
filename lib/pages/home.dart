@@ -9,6 +9,7 @@ import '../components/search_filter_popup.dart';
 import '../services/auth_service.dart';
 import '../services/activity_service.dart';
 import '../services/search_filter_service.dart';
+import '../services/category_service.dart';
 import 'login_page.dart';
 import 'create_activity_page.dart';
 import 'activity_detail_page.dart';
@@ -42,6 +43,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final AuthService _authService = AuthService();
   final ActivityService _activityService = ActivityService();
   final SearchFilterService _searchFilterService = SearchFilterService();
+  final CategoryService _categoryService = CategoryService();
   
   AuthUser? _currentUser;
   bool _isLoading = true;
@@ -52,7 +54,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _isLoadingActivities = false;
   
   late TabController _tabController;
-  int _selectedCategoryIndex = 0; // 分類篩選索引
+  CategoryTabData? _selectedCategory; // 當前選中的分類
 
   @override
   void initState() {
@@ -73,6 +75,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     
     _loadUserData();
     _loadActivities();
+    
+    // 測試 Firebase 分類數據
+    _testFirebaseCategories();
   }
 
   @override
@@ -97,6 +102,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (mounted) {
       _applyFilters();
     }
+  }
+
+  /// 測試 Firebase 分類數據
+  Future<void> _testFirebaseCategories() async {
+    debugPrint('=== 開始測試 Firebase 分類數據 ===');
+    
+    // 測試原始數據
+    await _categoryService.testFirebaseData();
+    
+    // 測試解析後的數據
+    try {
+      final categories = await _categoryService.getAllCategories(forceRefresh: true);
+      debugPrint('解析後的分類數量: ${categories.length}');
+      for (final category in categories) {
+        debugPrint('分類: ${category.displayName} (${category.type})');
+      }
+    } catch (e) {
+      debugPrint('獲取分類失敗: $e');
+    }
+    
+    debugPrint('=== Firebase 分類數據測試完成 ===');
   }
 
   Future<void> _loadUserData() async {
@@ -152,13 +178,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     try {
       debugPrint('開始載入活動資料...');
+      debugPrint('當前選中的分類: ${_selectedCategory?.categoryName}');
       
       // 根據選中的分類獲取活動
-      String? categoryFilter;
-      if (_selectedCategoryIndex > 0) {
-        final categories = ['', 'EventCategory_language_teaching', 'EventCategory_skill_experience', 'EventCategory_event_support', 'EventCategory_life_service'];
-        categoryFilter = categories[_selectedCategoryIndex];
-      }
+      String? categoryFilter = _selectedCategory?.categoryName;
       
       // 分別載入活動和任務
       final eventActivities = await _activityService.getAllActivities(
@@ -205,11 +228,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       debugPrint('重整 $type 活動資料...');
       
       // 根據選中的分類獲取活動
-      String? categoryFilter;
-      if (_selectedCategoryIndex > 0) {
-        final categories = ['', 'EventCategory_language_teaching', 'EventCategory_skill_experience', 'EventCategory_event_support', 'EventCategory_life_service'];
-        categoryFilter = categories[_selectedCategoryIndex];
-      }
+      String? categoryFilter = _selectedCategory?.categoryName;
       
       final activities = await _activityService.getAllActivities(
         type: type,
@@ -471,14 +490,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   
   // 分類標籤
   Widget _buildCategoryTabs() {
-    final categories = ['全部', '語言教學', '技能羅盤', '活動支援', '生活服務'];
+    // 根據當前選中的標籤頁決定顯示的分類類型
+    String activityType = 'all'; // 顯示所有分類
+    if (_tabController.index == 0) {
+      activityType = 'event';
+    } else if (_tabController.index == 1) {
+      activityType = 'task';
+    }
     
     return CategoryTabs(
-      categories: categories,
-      initialIndex: _selectedCategoryIndex,
-      onTabChanged: (index) {
+      activityType: activityType,
+      initialIndex: 0,
+      showAllTab: true,
+      onTabChanged: (index, categoryData) {
+        debugPrint('分類標籤改變: index=$index, categoryData=${categoryData?.displayName}');
         setState(() {
-          _selectedCategoryIndex = index;
+          _selectedCategory = categoryData;
         });
         _loadActivities(); // 分類改變時重新載入活動
       },
