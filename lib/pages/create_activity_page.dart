@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'dart:io';
 import '../components/design_system/custom_text_input.dart';
@@ -1469,43 +1468,13 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '新增幾張相片',
+              '新增相片',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
-            
-            const SizedBox(height: 24),
-            
-            // 新增相片按鈕
-            GestureDetector(
-              onTap: _showImageSourceDialog,
-              child: Container(
-                width: double.infinity,
-                height: 60,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add, color: Colors.black),
-                    SizedBox(width: 8),
-                    Text(
-                      '新增相片',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
             
             const SizedBox(height: 24),
             
@@ -1753,11 +1722,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             
             // 1. 照片滿版滑動預覽
             if (_uploadedPhotos.isNotEmpty) ...[
-              // 移除左右padding，讓圖片滿版
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: -24), // 抵消父容器的padding
-                child: _buildConfirmationCoverImage(),
-              ),
+              _buildConfirmationCoverImage(),
               const SizedBox(height: 24),
             ],
             
@@ -1969,138 +1934,6 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
 
 
 
-  /// 顯示圖片來源選擇對話框
-  void _showImageSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '選擇照片來源',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 20,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('從相簿選擇'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromGallery();
-              },
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('拍照'),
-              onTap: () {
-                Navigator.pop(context);
-                _takePhoto();
-              },
-            ),
-            
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 從相簿選擇圖片
-  Future<void> _pickImageFromGallery() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-      
-      if (image != null) {
-        setState(() {
-          _uploadedPhotos.add(image.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomSnackBar.showError(
-          context,
-          message: '選擇圖片失敗，請確認已授予相簿權限',
-        );
-      }
-    }
-  }
-
-  /// 拍照
-  Future<void> _takePhoto() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 80,
-      );
-      
-      if (image != null) {
-        setState(() {
-          _uploadedPhotos.add(image.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomSnackBar.showError(
-          context,
-          message: '拍照失敗，請確認已授予相機權限',
-        );
-      }
-    }
-  }
 
   /// 構建信息行
   Widget _buildInfoRow(String label, String value, {bool isHighlight = false}) {
@@ -2273,87 +2106,84 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     }
   }
 
-  /// 建構確認頁面的封面圖片（滿版滑動）
+  /// 建構確認頁面的封面圖片（滑動預覽）
   Widget _buildConfirmationCoverImage() {
     int currentImageIndex = 0; // 本地變量追蹤當前圖片索引
     
     return StatefulBuilder(
       builder: (context, setState) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Stack(
-            children: [
-              // 圖片容器 (5:3 比例)
-              AspectRatio(
-                aspectRatio: 5 / 3,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.grey100,
-                      width: 1,
-                    ),
+        return Stack(
+          children: [
+            // 圖片容器 (5:3 比例)
+            AspectRatio(
+              aspectRatio: 5 / 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.grey100,
+                    width: 1,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: PageView.builder(
-                      itemCount: _uploadedPhotos.length,
-                      onPageChanged: (index) {
-                        setState(() {
-                          currentImageIndex = index;
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            image: DecorationImage(
-                              image: FileImage(File(_uploadedPhotos[index])),
-                              fit: BoxFit.cover,
-                            ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: PageView.builder(
+                    itemCount: _uploadedPhotos.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        currentImageIndex = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          image: DecorationImage(
+                            image: FileImage(File(_uploadedPhotos[index])),
+                            fit: BoxFit.cover,
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            
+            // 頁數標籤（如果有多張圖片）
+            if (_uploadedPhotos.length > 1)
+              Positioned(
+                bottom: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${currentImageIndex + 1}/${_uploadedPhotos.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
               ),
-              
-              // 頁數標籤（如果有多張圖片）
-              if (_uploadedPhotos.length > 1)
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${currentImageIndex + 1}/${_uploadedPhotos.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+            
+            // 分頁指示器（如果有多張圖片）
+            if (_uploadedPhotos.length > 1)
+              Positioned(
+                bottom: 16,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: _buildConfirmationPageIndicators(_uploadedPhotos.length, currentImageIndex),
                 ),
-              
-              // 分頁指示器（如果有多張圖片）
-              if (_uploadedPhotos.length > 1)
-                Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: _buildConfirmationPageIndicators(_uploadedPhotos.length, currentImageIndex),
-                  ),
-                ),
-            ],
-          ),
+              ),
+          ],
         );
       },
     );

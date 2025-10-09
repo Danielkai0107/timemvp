@@ -35,7 +35,7 @@ class EditActivityPage extends StatefulWidget {
 class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentStep = 1;
-  int _totalSteps = 7; // 編輯流程：發布類型 → 舉辦方式 → 基本資料 → 描述內容 → 相片 → 價格 → 確認更新
+  int _totalSteps = 5; // 編輯流程：基本資料 → 描述內容 → 相片 → 價格 → 確認更新
   double _previousViewInsetsBottom = 0;
   
   // 服務實例
@@ -366,15 +366,24 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     setState(() {});
   }
 
-  /// 將資料庫分類鍵值轉換為顯示名稱
-  String? _getCategoryDisplayName(String? categoryKey) {
-    switch (categoryKey) {
-      case 'EventCategory_language_teaching': return '語言教學';
-      case 'EventCategory_skill_experience': return '技能體驗';
-      case 'EventCategory_event_support': return '活動支援';
-      case 'EventCategory_life_service': return '生活服務';
-      default: return null;
-    }
+  /// 將分類名稱轉換為顯示名稱
+  String _getCategoryDisplayName(String? categoryName) {
+    if (categoryName == null || categoryName.isEmpty) return '';
+    
+    // 從可用分類列表中找到對應的顯示名稱
+    final category = _availableCategories.firstWhere(
+      (cat) => cat.name == categoryName,
+      orElse: () => Category(
+        id: categoryName,
+        name: categoryName, 
+        displayName: categoryName, 
+        type: 'event',
+        sortOrder: 0,
+        isActive: true,
+      ),
+    );
+    
+    return category.displayName;
   }
 
   /// 將分類名稱轉換為資料庫鍵值
@@ -410,8 +419,6 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
   }
 
   // 驗證各步驟是否可以繼續
-  bool _canProceedFromStep1() => _activityType != null;
-  bool _canProceedFromStep2() => _hostingMethod != null;
   bool _canProceedFromStep3() {
     return _nameController.text.trim().isNotEmpty &&
            _category != null &&
@@ -427,25 +434,16 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
 
   VoidCallback? _getNextStepAction() {
     switch (_currentStep) {
-      case 1: return _canProceedFromStep1() ? _nextStep : () => _showStep1Errors();
-      case 2: return _canProceedFromStep2() ? _nextStep : () => _showStep2Errors();
-      case 3: return _canProceedFromStep3() ? _nextStep : () => _showStep3Errors();
-      case 4: return _canProceedFromStep4() ? _nextStep : () => _showStep4Errors();
-      case 5: return _canProceedFromStep5() ? _nextStep : () => _showStep5Errors();
-      case 6: return _canProceedFromStep6() ? _nextStep : () => _showStep6Errors();
-      case 7: return _updateActivity; // 更新活動
+      case 1: return _canProceedFromStep3() ? _nextStep : () => _showStep3Errors(); // 基本資料
+      case 2: return _canProceedFromStep4() ? _nextStep : () => _showStep4Errors(); // 描述內容
+      case 3: return _canProceedFromStep5() ? _nextStep : () => _showStep5Errors(); // 相片
+      case 4: return _canProceedFromStep6() ? _nextStep : () => _showStep6Errors(); // 價格
+      case 5: return _updateActivity; // 確認更新
       default: return null;
     }
   }
 
   /// 顯示各步驟的錯誤提醒
-  void _showStep1Errors() {
-    CustomSnackBarBuilder.validationError(context, '請選擇發布類型');
-  }
-
-  void _showStep2Errors() {
-    CustomSnackBarBuilder.validationError(context, '請選擇舉辦方式');
-  }
 
   void _showStep3Errors() {
     setState(() {
@@ -543,7 +541,7 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
   }
 
   String _getNextButtonText() {
-    return _currentStep == 7 ? '確認更新' : '下一步';
+    return _currentStep == 5 ? '確認更新' : '下一步';
   }
 
   bool _getNextButtonEnabled() {
@@ -659,8 +657,6 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
   /// 構建步驟頁面列表
   List<Widget> _buildStepPages() {
     return [
-      _buildStep1(), // 選擇發布類型
-      _buildStep2(), // 選擇舉辦方式
       _buildStep3(), // 填寫基本資料
       _buildStep4(), // 填寫描述內容
       _buildStep5(), // 新增相片
@@ -737,107 +733,6 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     );
   }
 
-  /// 步驟一：選擇發布類型
-  Widget _buildStep1() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '修改發布類型',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            _buildOptionCard(
-              title: '舉辦活動',
-              icon: Icons.person,
-              isSelected: _activityType == 'individual',
-              onTap: () {
-                setState(() {
-                  _activityType = 'individual';
-                });
-                // 載入對應的分類
-                _loadCategories();
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildOptionCard(
-              title: '任務委託',
-              icon: Icons.people,
-              isSelected: _activityType == 'group',
-              onTap: () {
-                setState(() {
-                  _activityType = 'group';
-                });
-                // 載入對應的分類
-                _loadCategories();
-              },
-            ),
-            
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 步驟二：選擇舉辦方式
-  Widget _buildStep2() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '修改舉辦方式',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            _buildOptionCard(
-              title: '線上',
-              isSelected: _hostingMethod == 'online',
-              onTap: () {
-                setState(() {
-                  _hostingMethod = 'online';
-                });
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildOptionCard(
-              title: '實體',
-              isSelected: _hostingMethod == 'offline',
-              onTap: () {
-                setState(() {
-                  _hostingMethod = 'offline';
-                });
-              },
-            ),
-            
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// 步驟三：填寫基本資料
   Widget _buildStep3() {
@@ -1246,40 +1141,11 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '修改活動相片',
+              '修改相片',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // 新增相片按鈕
-            GestureDetector(
-              onTap: _showImageSourceDialog,
-              child: Container(
-                width: double.infinity,
-                height: 60,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add, color: Colors.black),
-                    SizedBox(width: 8),
-                    Text(
-                      '新增相片',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
             
@@ -1521,7 +1387,7 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
             
             // 2. 類別
             _buildSectionHeader('類別'),
-            _buildSectionContent(_category ?? ''),
+            _buildSectionContent(_getCategoryDisplayName(_category)),
             _buildDivider(),
             
             // 3. 日期
@@ -1557,50 +1423,6 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     );
   }
 
-  /// 構建選項卡片
-  Widget _buildOptionCard({
-    required String title,
-    IconData? icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? AppColors.primary900 : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: isSelected ? AppColors.primary900.withValues(alpha: 0.1) : Colors.white,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 24,
-                color: isSelected ? Colors.black : Colors.grey,
-              ),
-              const SizedBox(width: 16),
-            ],
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// 構建小標題
   Widget _buildSectionTitle(String title) {
@@ -1966,25 +1788,19 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
       });
     }
     
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '活動相片',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildEdit2x2PhotoGrid(allPhotos),
-      ],
-    );
+    // 如果沒有任何照片，顯示初始的"+ 新增相片"按鈕
+    if (allPhotos.isEmpty) {
+      return _buildEditInitialAddButton();
+    }
+    
+    return _buildEdit2x2PhotoGrid(allPhotos);
   }
 
   /// 建構編輯頁面的2x2照片網格
   Widget _buildEdit2x2PhotoGrid(List<Map<String, dynamic>> allPhotos) {
+    // 計算實際需要顯示的項目數量
+    final itemCount = allPhotos.length < 4 ? allPhotos.length + 1 : 4;
+    
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -1994,19 +1810,49 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
         mainAxisSpacing: 12,
         childAspectRatio: 4 / 3, // 修改為4:3比例
       ),
-      itemCount: 4, // 固定4個位置
+      itemCount: itemCount,
       itemBuilder: (context, index) {
         if (index < allPhotos.length) {
           // 顯示已有的照片
           return _buildEditPhotoSlot(allPhotos[index]);
         } else if (index == allPhotos.length && allPhotos.length < 4) {
-          // 顯示新增按鈕（虛線方框 + icon）
+          // 只有在照片數量少於4張時才顯示新增按鈕
           return _buildEditAddPhotoSlot();
         } else {
-          // 空白位置
+          // 這個分支理論上不會執行到
           return _buildEditEmptySlot();
         }
       },
+    );
+  }
+
+  /// 建構編輯頁面的初始新增照片按鈕（沒有照片時顯示）
+  Widget _buildEditInitialAddButton() {
+    return GestureDetector(
+      onTap: _showImageSourceDialog,
+      child: Container(
+        width: double.infinity,
+        height: 60,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add, color: Colors.black),
+            SizedBox(width: 8),
+            Text(
+              '新增相片',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2119,7 +1965,7 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.1),
@@ -2133,27 +1979,6 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
                 style: TextStyle(
                   color: Colors.black,
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        // 照片類型標籤（現有照片標籤，顯示在左下角）
-        if (photoData['isExisting'])
-          Positioned(
-            bottom: 8,
-            left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                '現有',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
                   fontWeight: FontWeight.w500,
                 ),
               ),
