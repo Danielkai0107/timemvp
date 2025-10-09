@@ -334,6 +334,28 @@ class SuccessPopupBuilder {
     );
   }
 
+  /// 活動已被取消通知（底部彈出）
+  static void activityCancelledBottom(
+    BuildContext context, {
+    required String activityTitle,
+    VoidCallback? onConfirm,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => BottomCancelledPopup(
+        title: '活動已被取消',
+        message: '很抱歉，您報名的活動\n"$activityTitle"\n已被發布者取消。',
+        buttonText: '我知道了',
+        onButtonPressed: onConfirm ?? () => Navigator.of(context).pop(),
+        onClosePressed: onConfirm ?? () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+
   /// 付款成功
   static void paymentSuccess(
     BuildContext context, {
@@ -394,6 +416,142 @@ class SuccessPopupBuilder {
 /// 底部成功彈窗組件（從底部彈出）
 class BottomSuccessPopup extends StatelessWidget {
   const BottomSuccessPopup({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.buttonText,
+    required this.onButtonPressed,
+    this.showCloseButton = true,
+    this.onClosePressed,
+  });
+
+  final String title;
+  final String message;
+  final String buttonText;
+  final VoidCallback onButtonPressed;
+  final bool showCloseButton;
+  final VoidCallback? onClosePressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 頂部拖拽指示器
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.grey300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          
+          // 關閉按鈕
+          if (showCloseButton)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: onClosePressed ?? () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.grey100,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 20,
+                        color: AppColors.grey500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // 內容區域
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+            child: Column(
+              children: [
+                // 標題
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // 訊息內容
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // 確認按鈕
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: onButtonPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary900,
+                      foregroundColor: AppColors.textPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      buttonText,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // 底部安全區域
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
+    );
+  }
+}
+
+/// 底部活動取消通知彈窗組件（從底部彈出）
+class BottomCancelledPopup extends StatelessWidget {
+  const BottomCancelledPopup({
     super.key,
     required this.title,
     required this.message,

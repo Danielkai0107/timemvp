@@ -149,17 +149,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (hasChanges) {
         if (mounted) {
-          CustomSnackBar.showSuccess(
-            context,
-            message: '個人資料已更新',
-          );
-          
-          // 短暫延遲讓用戶看到成功訊息，然後返回並觸發重整
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              Navigator.of(context).pop(true); // 返回 true 表示已更新
-            }
-          });
+          // 直接返回，成功訊息由 profile_page 處理
+          Navigator.of(context).pop(true); // 返回 true 表示已更新
         }
       } else {
         if (mounted) {
@@ -168,8 +159,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             message: '沒有變更需要儲存',
           );
           
-          // 沒有變更時也返回，但不觸發重整
-          Future.delayed(const Duration(milliseconds: 300), () {
+          // 短暫延遲讓用戶看到訊息，然後返回
+          Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted) {
               Navigator.of(context).pop(false);
             }

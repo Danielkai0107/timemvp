@@ -245,6 +245,36 @@ class ActivityService {
     }
   }
 
+  /// 取消活動（包含更新報名者狀態）
+  Future<void> cancelActivity({
+    required String activityId,
+  }) async {
+    try {
+      debugPrint('=== 開始取消活動流程 ===');
+      debugPrint('活動ID: $activityId');
+
+      // 1. 更新活動狀態為已取消
+      await updateActivityStatus(
+        activityId: activityId,
+        status: 'cancelled',
+      );
+      debugPrint('✅ 活動狀態已更新為已取消');
+
+      // 2. 更新所有報名者狀態為已取消
+      await updateAllRegistrationStatusForActivity(
+        activityId: activityId,
+        newStatus: 'cancelled',
+      );
+      debugPrint('✅ 所有報名者狀態已更新為已取消');
+
+      debugPrint('=== 取消活動流程完成 ===');
+
+    } catch (e) {
+      debugPrint('取消活動流程失敗: $e');
+      throw Exception('取消活動失敗: $e');
+    }
+  }
+
   /// 刪除活動
   Future<void> deleteActivity(String activityId) async {
     try {
@@ -1239,13 +1269,19 @@ class ActivityService {
     required String activityId,
   }) async {
     try {
+      debugPrint('=== 檢查是否應顯示評分彈窗 ===');
+      debugPrint('用戶ID: $userId');
+      debugPrint('活動ID: $activityId');
+
       // 檢查用戶是否已報名此活動
       final isRegistered = await isUserRegistered(
         userId: userId,
         activityId: activityId,
       );
 
+      debugPrint('用戶是否已報名: $isRegistered');
       if (!isRegistered) {
+        debugPrint('❌ 用戶未報名此活動，不顯示評分彈窗');
         return false;
       }
 
@@ -1256,20 +1292,25 @@ class ActivityService {
           .get();
 
       if (!registrationDoc.exists) {
+        debugPrint('❌ 報名記錄不存在，不顯示評分彈窗');
         return false;
       }
 
       final registrationData = registrationDoc.data() as Map<String, dynamic>;
       final registrationStatus = registrationData['status'] as String?;
+      debugPrint('報名狀態: $registrationStatus');
 
       // 檢查活動是否已結束（活動狀態或報名狀態）
       final activity = await getActivityDetail(activityId);
       if (activity == null) {
+        debugPrint('❌ 活動不存在，不顯示評分彈窗');
         return false;
       }
 
       final activityStatus = activity['status'] as String?;
       final endDateTime = activity['endDateTime'] as String?;
+      debugPrint('活動狀態: $activityStatus');
+      debugPrint('活動結束時間: $endDateTime');
 
       bool isActivityEnded = false;
 
@@ -1279,22 +1320,28 @@ class ActivityService {
       // 3. 當前時間已超過活動結束時間
       if (activityStatus == 'ended' || registrationStatus == 'ended') {
         isActivityEnded = true;
-        debugPrint('活動已結束 - 活動狀態: $activityStatus, 報名狀態: $registrationStatus');
+        debugPrint('✅ 活動已結束 - 活動狀態: $activityStatus, 報名狀態: $registrationStatus');
       } else if (endDateTime != null) {
         try {
           final endTime = DateTime.parse(endDateTime);
           final now = DateTime.now();
           isActivityEnded = now.isAfter(endTime);
+          debugPrint('當前時間: ${now.toIso8601String()}');
+          debugPrint('結束時間: ${endTime.toIso8601String()}');
+          debugPrint('時間比較結果: ${now.isAfter(endTime) ? "已超過" : "未超過"}');
           if (isActivityEnded) {
-            debugPrint('活動已結束 - 超過預定結束時間: $endDateTime');
+            debugPrint('✅ 活動已結束 - 超過預定結束時間');
           }
         } catch (e) {
-          debugPrint('解析活動結束時間失敗: $e');
+          debugPrint('❌ 解析活動結束時間失敗: $e');
         }
       }
 
       if (!isActivityEnded) {
-        debugPrint('活動尚未結束，不顯示評分彈窗');
+        debugPrint('❌ 活動尚未結束，不顯示評分彈窗');
+        debugPrint('   - 活動狀態: $activityStatus (需要 "ended")');
+        debugPrint('   - 報名狀態: $registrationStatus (需要 "ended")');
+        debugPrint('   - 結束時間檢查: ${endDateTime != null ? "已檢查但未超過" : "無結束時間"}');
         return false;
       }
 
@@ -1304,15 +1351,16 @@ class ActivityService {
         activityId: activityId,
       );
 
+      debugPrint('用戶是否已評分: $hasRated');
       if (hasRated) {
-        debugPrint('用戶已評分過此活動');
+        debugPrint('❌ 用戶已評分過此活動，不顯示評分彈窗');
         return false;
       }
 
-      debugPrint('符合評分條件，將顯示評分彈窗');
+      debugPrint('✅ 符合所有條件，將顯示評分彈窗');
       return true;
     } catch (e) {
-      debugPrint('檢查是否應顯示評分彈窗失敗: $e');
+      debugPrint('❌ 檢查是否應顯示評分彈窗失敗: $e');
       return false;
     }
   }
@@ -1350,10 +1398,17 @@ class ActivityService {
         
         // 只更新狀態為 'registered' 的記錄（避免覆蓋已取消的報名）
         if (currentStatus == 'registered') {
-          batch.update(doc.reference, {
+          final updateData = <String, dynamic>{
             'status': newStatus,
             'updatedAt': updateTime,
-          });
+          };
+          
+          // 如果是取消狀態，設置通知標記為 false（需要通知用戶）
+          if (newStatus == 'cancelled') {
+            updateData['notified'] = false;
+          }
+          
+          batch.update(doc.reference, updateData);
           debugPrint('將更新報名記錄: ${doc.id} 從 $currentStatus 到 $newStatus');
         } else {
           debugPrint('跳過報名記錄: ${doc.id}，當前狀態: $currentStatus');
@@ -1397,6 +1452,166 @@ class ActivityService {
     } catch (e) {
       debugPrint('提前結束活動流程失敗: $e');
       throw Exception('提前結束活動失敗: $e');
+    }
+  }
+
+  /// 檢查用戶是否有新的被取消活動通知
+  Future<List<Map<String, dynamic>>> getNewCancelledActivitiesForUser({
+    required String userId,
+  }) async {
+    try {
+      debugPrint('=== 檢查用戶新的被取消活動通知 ===');
+      debugPrint('用戶ID: $userId');
+
+      // 獲取用戶所有狀態為 'cancelled' 且尚未通知的報名記錄
+      final registrationQuery = await _firestore
+          .collection('user_registrations')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'cancelled')
+          .where('notified', isEqualTo: false) // 添加通知標記
+          .get();
+
+      debugPrint('找到 ${registrationQuery.docs.length} 個新的被取消活動');
+
+      if (registrationQuery.docs.isEmpty) {
+        return [];
+      }
+
+      final cancelledActivities = <Map<String, dynamic>>[];
+
+      // 獲取每個被取消活動的詳細信息
+      for (final registrationDoc in registrationQuery.docs) {
+        final registrationData = registrationDoc.data();
+        final activityId = registrationData['activityId'] as String;
+
+        try {
+          final activityDoc = await _firestore
+              .collection('posts')
+              .doc(activityId)
+              .get();
+
+          if (activityDoc.exists) {
+            final activityData = activityDoc.data()!;
+            cancelledActivities.add({
+              'registrationId': registrationDoc.id,
+              'activityId': activityId,
+              'activityTitle': activityData['title'] ?? '未知活動',
+              'activityData': activityData,
+              'registrationData': registrationData,
+            });
+          }
+        } catch (e) {
+          debugPrint('獲取活動詳情失敗: $activityId, 錯誤: $e');
+        }
+      }
+
+      debugPrint('成功獲取 ${cancelledActivities.length} 個被取消活動的詳細信息');
+      return cancelledActivities;
+
+    } catch (e) {
+      debugPrint('檢查被取消活動通知失敗: $e');
+      return [];
+    }
+  }
+
+  /// 標記被取消活動通知為已讀
+  Future<void> markCancelledActivitiesAsNotified({
+    required List<String> registrationIds,
+  }) async {
+    try {
+      debugPrint('=== 標記被取消活動通知為已讀 ===');
+      debugPrint('報名記錄數量: ${registrationIds.length}');
+
+      if (registrationIds.isEmpty) return;
+
+      final batch = _firestore.batch();
+      final updateTime = DateTime.now().toIso8601String();
+
+      for (final registrationId in registrationIds) {
+        final docRef = _firestore
+            .collection('user_registrations')
+            .doc(registrationId);
+        
+        batch.update(docRef, {
+          'notified': true,
+          'notifiedAt': updateTime,
+        });
+      }
+
+      await batch.commit();
+      debugPrint('成功標記 ${registrationIds.length} 個通知為已讀');
+
+    } catch (e) {
+      debugPrint('標記通知為已讀失敗: $e');
+      throw Exception('標記通知為已讀失敗: $e');
+    }
+  }
+
+  /// 檢查特定活動是否被取消且需要通知用戶
+  Future<bool> shouldShowCancelledNotificationForActivity({
+    required String userId,
+    required String activityId,
+  }) async {
+    try {
+      debugPrint('=== 檢查活動取消通知狀態 ===');
+      debugPrint('用戶ID: $userId');
+      debugPrint('活動ID: $activityId');
+
+      // 獲取用戶對該活動的報名記錄
+      final registrationDoc = await _firestore
+          .collection('user_registrations')
+          .doc('${userId}_$activityId')
+          .get();
+
+      if (!registrationDoc.exists) {
+        debugPrint('未找到報名記錄');
+        return false;
+      }
+
+      final registrationData = registrationDoc.data()!;
+      final status = registrationData['status'] as String?;
+      final notified = registrationData['notified'] as bool? ?? false;
+
+      debugPrint('報名狀態: $status');
+      debugPrint('已通知: $notified');
+      debugPrint('報名記錄完整數據: $registrationData');
+
+      // 如果狀態為 cancelled 且尚未通知，則需要顯示通知
+      final shouldShow = status == 'cancelled' && !notified;
+      debugPrint('是否需要顯示通知: $shouldShow');
+
+      return shouldShow;
+
+    } catch (e) {
+      debugPrint('檢查活動取消通知狀態失敗: $e');
+      return false;
+    }
+  }
+
+  /// 標記特定活動的取消通知為已讀
+  Future<void> markActivityCancelledNotificationAsRead({
+    required String userId,
+    required String activityId,
+  }) async {
+    try {
+      debugPrint('=== 標記活動取消通知為已讀 ===');
+      debugPrint('用戶ID: $userId');
+      debugPrint('活動ID: $activityId');
+
+      final docRef = _firestore
+          .collection('user_registrations')
+          .doc('${userId}_$activityId');
+
+      await docRef.update({
+        'notified': true,
+        'notifiedAt': DateTime.now().toIso8601String(),
+      });
+
+      debugPrint('成功標記活動取消通知為已讀');
+
+    } catch (e) {
+      debugPrint('標記活動取消通知為已讀失敗: $e');
+      throw Exception('標記活動取消通知為已讀失敗: $e');
     }
   }
 

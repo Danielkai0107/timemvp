@@ -769,6 +769,26 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
     return categoryName;
   }
 
+  /// 獲取分類的顯示名稱
+  String _getCategoryDisplayName(String categoryName) {
+    if (categoryName.isEmpty) return '';
+    
+    // 從可用分類列表中找到對應的顯示名稱
+    final category = _availableCategories.firstWhere(
+      (cat) => cat.name == categoryName,
+      orElse: () => Category(
+        id: categoryName,
+        name: categoryName, 
+        displayName: categoryName, 
+        type: 'event',
+        sortOrder: 0,
+        isActive: true,
+      ),
+    );
+    
+    return category.displayName;
+  }
+
   /// 根據用戶狀態構建步驟頁面列表
   List<Widget> _buildStepPages() {
     final pages = <Widget>[];
@@ -1673,7 +1693,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             if (_price > 0) Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -1726,7 +1746,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             if (_price > 0) Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -1789,35 +1809,12 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             
             const SizedBox(height: 24),
             
-            // 1. 照片水平滑動預覽
+            // 1. 照片滿版滑動預覽
             if (_uploadedPhotos.isNotEmpty) ...[
-              SizedBox(
-                height: 200,
-                child: PageView.builder(
-                  controller: PageController(viewportFraction: 0.85), // 讓下一張圖片露出部分
-                  itemCount: _uploadedPhotos.length,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.grey.shade200,
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(11), // 稍微小一點以適應外框
-                        child: Image.file(
-                          File(_uploadedPhotos[index]),
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              // 移除左右padding，讓圖片滿版
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: -24), // 抵消父容器的padding
+                child: _buildConfirmationCoverImage(),
               ),
               const SizedBox(height: 24),
             ],
@@ -1829,7 +1826,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             
             // 3. 類別
             _buildSectionHeader('類別'),
-            _buildSectionContent(_category ?? ''),
+            _buildSectionContent(_getCategoryDisplayName(_category ?? '')),
             _buildDivider(),
             
             // 4. 日期
@@ -1870,11 +1867,11 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             // 9. 收入詳情
             if (_price >= 50) ...[
               _buildSectionHeader('收入詳情'),
-              
+              const SizedBox(height: 8), // 增加8px距離
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -2332,6 +2329,107 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
         _priceController.text = _price.toString();
       });
     }
+  }
+
+  /// 建構確認頁面的封面圖片（滿版滑動）
+  Widget _buildConfirmationCoverImage() {
+    int _currentImageIndex = 0; // 本地變量追蹤當前圖片索引
+    
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Stack(
+            children: [
+              // 圖片容器 (5:3 比例)
+              AspectRatio(
+                aspectRatio: 5 / 3,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.grey100,
+                      width: 1,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: PageView.builder(
+                      itemCount: _uploadedPhotos.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentImageIndex = index;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            image: DecorationImage(
+                              image: FileImage(File(_uploadedPhotos[index])),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              
+              // 頁數標籤（如果有多張圖片）
+              if (_uploadedPhotos.length > 1)
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_currentImageIndex + 1}/${_uploadedPhotos.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              
+              // 分頁指示器（如果有多張圖片）
+              if (_uploadedPhotos.length > 1)
+                Positioned(
+                  bottom: 16,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: _buildConfirmationPageIndicators(_uploadedPhotos.length, _currentImageIndex),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 建構確認頁面的分頁指示器
+  List<Widget> _buildConfirmationPageIndicators(int count, int currentIndex) {
+    return List.generate(count, (index) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: index == currentIndex ? Colors.white : Colors.white.withValues(alpha: 0.5),
+        ),
+      );
+    });
   }
 
 }

@@ -7,10 +7,11 @@ class SearchFilterService extends ChangeNotifier {
   bool _disposed = false;
   
   // 位置相關
-  String _currentCity = '台北市';
-  String _currentArea = '大安區';
+  String _currentCity = '';  // 預設為空，表示「全部」
+  String _currentArea = '';  // 預設為空，表示「全部」
   Position? _currentPosition;
   bool _isLoadingLocation = false;
+  bool _useDeviceLocation = false;  // 是否使用裝置位置
   
   // 日期時間相關
   DateTime? _selectedDate; // 改為可空，null表示整個月份
@@ -31,8 +32,8 @@ class SearchFilterService extends ChangeNotifier {
       return '線上活動';
     }
     
-    // 如果沒有獲取到具體位置，顯示「全部」
-    if (_currentPosition == null) {
+    // 如果沒有使用裝置位置或沒有設定城市，顯示「全部」
+    if (!_useDeviceLocation || _currentCity.isEmpty) {
       return '全部';
     }
     
@@ -66,8 +67,9 @@ class SearchFilterService extends ChangeNotifier {
   
   /// 初始化服務
   Future<void> initialize() async {
-    await _getCurrentLocation();
+    // 不自動獲取位置，預設為「全部」模式
     _initializeDefaultTime();
+    // 如果需要，可以在用戶主動選擇時才獲取位置
   }
   
   /// 獲取當前位置
@@ -112,6 +114,7 @@ class SearchFilterService extends ChangeNotifier {
       );
       
       _currentPosition = position;
+      _useDeviceLocation = true;  // 標記為使用裝置位置
       
       // 這裡可以使用反向地理編碼來獲取實際的城市和區域
       // 暫時使用預設值
@@ -190,6 +193,22 @@ class SearchFilterService extends ChangeNotifier {
     if (_disposed) return;
     _currentCity = city;
     _currentArea = area;
+    _useDeviceLocation = city.isNotEmpty && area.isNotEmpty;  // 如果設定了具體位置，標記為使用位置篩選
+    notifyListeners();
+  }
+  
+  /// 啟用裝置位置
+  Future<void> enableDeviceLocation() async {
+    await _getCurrentLocation();
+  }
+  
+  /// 重置為「全部」模式
+  void resetToAllLocations() {
+    if (_disposed) return;
+    _currentCity = '';
+    _currentArea = '';
+    _currentPosition = null;
+    _useDeviceLocation = false;
     notifyListeners();
   }
   
@@ -212,6 +231,11 @@ class SearchFilterService extends ChangeNotifier {
     _initializeDefaultTime();
     _searchKeyword = '';
     _isOnlineOnly = false;
+    // 重置位置為「全部」模式
+    _currentCity = '';
+    _currentArea = '';
+    _currentPosition = null;
+    _useDeviceLocation = false;
     notifyListeners();
   }
   
@@ -289,8 +313,8 @@ class SearchFilterService extends ChangeNotifier {
     
     // 位置篩選（如果活動有位置信息且不是線上活動）
     if (!isOnline && !_isOnlineOnly) {
-      // 如果顯示「全部」（沒有獲取到具體位置），則不進行位置篩選
-      if (_currentPosition == null) {
+      // 如果沒有使用裝置位置或城市為空（「全部」模式），則不進行位置篩選
+      if (!_useDeviceLocation || _currentCity.isEmpty) {
         // 全部模式，不篩選位置，顯示所有地區的活動
         return true;
       }

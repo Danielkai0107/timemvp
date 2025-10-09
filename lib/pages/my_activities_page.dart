@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../components/design_system/app_colors.dart';
 import '../components/design_system/custom_dropdown.dart';
 import '../components/design_system/activity_status_badge.dart';
 import '../components/design_system/custom_snackbar.dart';
+import '../components/design_system/success_popup.dart';
 import '../components/my_activity_card.dart';
 import '../services/activity_service.dart';
 import '../services/auth_service.dart';
@@ -56,6 +58,9 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
   // 分類相關
   List<Category> _allCategories = [];
   bool _isLoadingCategories = false;
+  
+  // 隱藏的活動列表
+  Set<String> _hiddenActivities = {};
 
   @override
   void initState() {
@@ -75,6 +80,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       }
     });
     
+    _loadHiddenActivities();
     _loadActivities();
     _loadCategories();
   }
@@ -176,6 +182,9 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
       // 應用篩選
       _applyFilters();
       
+      // 檢查是否有被取消的活動通知
+      _checkCancelledActivityNotifications(currentUser.uid);
+      
       debugPrint('=== 活動數據載入完成 ===');
     } catch (e) {
       debugPrint('=== 載入活動數據失敗 ===');
@@ -198,6 +207,126 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
   Future<void> _refreshFromExternal() async {
     debugPrint('=== 從外部觸發重整 ===');
     await _refreshActivities();
+  }
+
+  /// 載入隱藏的活動列表
+  Future<void> _loadHiddenActivities() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentUser = _authService.currentUser;
+      if (currentUser != null) {
+        final hiddenList = prefs.getStringList('hidden_activities_${currentUser.uid}') ?? [];
+        setState(() {
+          _hiddenActivities = hiddenList.toSet();
+        });
+        debugPrint('載入隱藏活動列表: ${_hiddenActivities.length} 個');
+      }
+    } catch (e) {
+      debugPrint('載入隱藏活動列表失敗: $e');
+    }
+  }
+
+  /// 保存隱藏的活動列表
+  Future<void> _saveHiddenActivities() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentUser = _authService.currentUser;
+      if (currentUser != null) {
+        await prefs.setStringList('hidden_activities_${currentUser.uid}', _hiddenActivities.toList());
+        debugPrint('保存隱藏活動列表: ${_hiddenActivities.length} 個');
+      }
+    } catch (e) {
+      debugPrint('保存隱藏活動列表失敗: $e');
+    }
+  }
+
+  /// 隱藏活動
+  Future<void> _hideActivity(String activityId, String activityTitle) async {
+    setState(() {
+      _hiddenActivities.add(activityId);
+    });
+    
+    await _saveHiddenActivities();
+    
+    // 重新應用篩選以移除隱藏的活動
+    _applyFilters();
+    
+    // 顯示成功提示
+    CustomSnackBarBuilder.success(
+      context,
+      '已刪除「$activityTitle」',
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  /// 檢查被取消的活動通知
+  Future<void> _checkCancelledActivityNotifications(String userId) async {
+    try {
+      debugPrint('=== 檢查被取消活動通知 ===');
+      
+      final cancelledActivities = await _activityService.getNewCancelledActivitiesForUser(
+        userId: userId,
+      );
+
+      if (cancelledActivities.isEmpty) {
+        debugPrint('沒有新的被取消活動通知');
+        return;
+      }
+
+      debugPrint('發現 ${cancelledActivities.length} 個新的被取消活動通知');
+
+      if (!mounted) return;
+
+      // 延遲一下確保頁面已經完全載入
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      // 逐個顯示取消通知（使用底部彈窗）
+      _showCancelledNotificationsSequentially(cancelledActivities, 0);
+
+    } catch (e) {
+      debugPrint('檢查被取消活動通知失敗: $e');
+    }
+  }
+
+
+  /// 逐個顯示取消通知（使用底部彈窗）
+  void _showCancelledNotificationsSequentially(List<Map<String, dynamic>> activities, int currentIndex) {
+    if (currentIndex >= activities.length || !mounted) {
+      // 所有通知都已顯示完畢，重新載入活動數據
+      _loadActivities();
+      return;
+    }
+
+    final activity = activities[currentIndex];
+    final activityTitle = activity['activityTitle'] as String;
+    final registrationId = activity['registrationId'] as String;
+
+    SuccessPopupBuilder.activityCancelledBottom(
+      context,
+      activityTitle: activityTitle,
+      onConfirm: () async {
+        Navigator.of(context).pop();
+        
+        // 標記當前活動為已通知
+        try {
+          await _activityService.markCancelledActivitiesAsNotified(
+            registrationIds: [registrationId],
+          );
+          debugPrint('活動 $activityTitle 已標記為已通知');
+        } catch (e) {
+          debugPrint('標記通知為已讀失敗: $e');
+        }
+        
+        // 延遲一下後顯示下一個通知
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        if (mounted) {
+          _showCancelledNotificationsSequentially(activities, currentIndex + 1);
+        }
+      },
+    );
   }
 
   /// 獲取實際的報名狀態（考慮活動是否已結束）
@@ -252,6 +381,12 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
     _filteredRegisteredActivities = _registeredActivities.where((activityData) {
       final registration = activityData['registration'] as Map<String, dynamic>;
       final activity = activityData['activity'] as Map<String, dynamic>;
+      final activityId = activity['id'] as String?;
+      
+      // 過濾隱藏的活動
+      if (activityId != null && _hiddenActivities.contains(activityId)) {
+        return false;
+      }
       
       // 狀態篩選
       if (_selectedRegisteredStatus != null) {
@@ -297,6 +432,13 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
 
     // 篩選發布活動
     _filteredPublishedActivities = _publishedActivities.where((activityData) {
+      final activityId = activityData['id'] as String?;
+      
+      // 過濾隱藏的活動
+      if (activityId != null && _hiddenActivities.contains(activityId)) {
+        return false;
+      }
+      
       // 狀態篩選
       if (_selectedPublishedStatus != null) {
         final statusString = activityData['displayStatus'] as String? ?? 'published';
@@ -744,6 +886,7 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
             child: MyActivityCardBuilder.fromRegistration(
               registrationData: activityData,
               onTap: () => _onActivityTap(activityData, true),
+              onHide: () => _handleRegisteredActivityHidden(activityData, index),
             ),
           );
         },
@@ -871,10 +1014,36 @@ class _MyActivitiesPageState extends State<MyActivitiesPage>
             child: MyActivityCardBuilder.fromPublishedActivity(
               activityData: activityData,
               onTap: () => _onActivityTap(activityData, false),
+              onHide: () => _handlePublishedActivityHidden(activityData, index),
             ),
           );
         },
       ),
     );
+  }
+
+  /// 處理報名活動的長按隱藏
+  void _handleRegisteredActivityHidden(Map<String, dynamic> activityData, int index) {
+    debugPrint('=== 處理報名活動長按隱藏 ===');
+    
+    final activity = activityData['activity'] as Map<String, dynamic>;
+    final activityTitle = activity['name'] as String? ?? '未知活動';
+    final activityId = activity['id'] as String? ?? '';
+    
+    if (activityId.isNotEmpty) {
+      _hideActivity(activityId, activityTitle);
+    }
+  }
+
+  /// 處理發布活動的長按隱藏
+  void _handlePublishedActivityHidden(Map<String, dynamic> activityData, int index) {
+    debugPrint('=== 處理發布活動長按隱藏 ===');
+    
+    final activityTitle = activityData['name'] as String? ?? '未知活動';
+    final activityId = activityData['id'] as String? ?? '';
+    
+    if (activityId.isNotEmpty) {
+      _hideActivity(activityId, activityTitle);
+    }
   }
 }

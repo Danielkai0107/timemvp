@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'design_system/app_colors.dart';
 import 'design_system/activity_status_badge.dart';
+import 'design_system/custom_snackbar.dart';
 
 /// 我的活動卡片組件
 /// 專門用於顯示用戶報名或發布的活動，包含狀態標籤
@@ -16,6 +18,9 @@ class MyActivityCard extends StatelessWidget {
   final ActivityStatus status;
   final String activityType; // 'event' 或 'task'
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress; // 長按回調
+  final bool enableLongPressToHide; // 是否啟用長按隱藏
+  
   const MyActivityCard({
     super.key,
     required this.title,
@@ -28,112 +33,163 @@ class MyActivityCard extends StatelessWidget {
     this.imageUrl,
     this.isPro = false,
     this.onTap,
+    this.onLongPress,
+    this.enableLongPressToHide = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cardContent = Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 活動資訊
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 活動標題和活動類型
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: activityType == 'event' 
+                                ? AppColors.primary300 
+                                : AppColors.secondary300,
+                          ),
+                        ),
+                        child: Text(
+                          activityType == 'event' ? '活動' : '任務',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: activityType == 'event' 
+                                ? AppColors.primary900 
+                                : AppColors.secondary900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 4),
+                  
+                  // 日期和時間
+                  Text(
+                    '$date $time',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 4),
+                  
+                  // 價格、地點和狀態標籤
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          location.isNotEmpty ? '$price｜$location' : price,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isPro) ...[
+                        const SizedBox(width: 8),
+                        SvgPicture.asset(
+                          'assets/images/pro-tag.svg',
+                          width: 32,
+                          height: 16,
+                        ),
+                      ],
+                      const SizedBox(width: 8),
+                      StatusBadgeBuilder.small(status),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+      ),
+    );
+
+    // 返回可點擊和長按的卡片
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 活動資訊
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 活動標題和活動類型
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: activityType == 'event' 
-                                  ? AppColors.primary300 
-                                  : AppColors.secondary300,
-                            ),
-                          ),
-                          child: Text(
-                            activityType == 'event' ? '活動' : '任務',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: activityType == 'event' 
-                                  ? AppColors.primary900 
-                                  : AppColors.secondary900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    
-                    // 日期和時間
-                    Text(
-                      '$date $time',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    
-                    // 價格、地點和狀態標籤
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            location.isNotEmpty ? '$price｜$location' : price,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isPro) ...[
-                          const SizedBox(width: 8),
-                          SvgPicture.asset(
-                            'assets/images/pro-tag.svg',
-                            width: 32,
-                            height: 16,
-                          ),
-                        ],
-                        const SizedBox(width: 8),
-                        StatusBadgeBuilder.small(status),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-        ),
+      onLongPress: () => _handleLongPress(context),
+      child: cardContent,
+    );
+  }
+
+  /// 處理長按事件
+  void _handleLongPress(BuildContext context) {
+    // 觸覺反饋
+    HapticFeedback.mediumImpact();
+    
+    if (enableLongPressToHide) {
+      // 可以隱藏的活動，顯示隱藏確認對話框
+      _showHideConfirmDialog(context);
+    } else {
+      // 不能隱藏的活動，顯示提示訊息
+      CustomSnackBarBuilder.info(
+        context,
+        '因活動還在進行中無法刪除',
+        duration: const Duration(seconds: 2),
+      );
+    }
+  }
+
+  /// 顯示隱藏確認對話框
+  void _showHideConfirmDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認刪除'),
+        content: Text('確定要刪除「$title」嗎？\n刪除後將不會再顯示此活動。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              onLongPress?.call();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error900,
+            ),
+            child: const Text('確認刪除'),
+          ),
+        ],
       ),
     );
   }
@@ -151,12 +207,14 @@ class MyActivityCardBuilder {
     final activityType = activity['type'] as String? ?? 'event';
     final endDateTime = activity['endDateTime'] as String?;
     
-    // 如果報名狀態已經是 ended 或 cancelled，直接返回
+    // 首先檢查是否為取消狀態（最高優先級）
+    if (registrationStatus == 'cancelled' || activityStatus == 'cancelled') {
+      return ActivityStatus.cancelled;
+    }
+    
+    // 如果報名狀態已經是 ended，直接返回
     if (registrationStatus == 'ended') {
       return ActivityStatus.ended;
-    }
-    if (registrationStatus == 'cancelled') {
-      return ActivityStatus.cancelled;
     }
     
     // 檢查活動是否已結束
@@ -190,6 +248,7 @@ class MyActivityCardBuilder {
   static Widget fromRegistration({
     required Map<String, dynamic> registrationData,
     VoidCallback? onTap,
+    VoidCallback? onHide,
   }) {
     debugPrint('=== MyActivityCard: 從報名記錄創建卡片 ===');
     debugPrint('輸入資料: $registrationData');
@@ -254,6 +313,9 @@ class MyActivityCardBuilder {
     debugPrint('- 圖片: ${activity['cover']}');
     debugPrint('- 類型: $activityType');
     
+    // 檢查是否應該啟用長按隱藏（只有已取消和已結束的活動）
+    final enableLongPress = status == ActivityStatus.cancelled || status == ActivityStatus.ended;
+    
     return MyActivityCard(
       title: activity['name'] as String? ?? '未知活動',
       date: _formatDate(startDate),
@@ -265,6 +327,8 @@ class MyActivityCardBuilder {
       status: status,
       activityType: activityType,
       onTap: onTap,
+      enableLongPressToHide: enableLongPress,
+      onLongPress: enableLongPress ? onHide : null,
     );
   }
 
@@ -272,6 +336,7 @@ class MyActivityCardBuilder {
   static Widget fromPublishedActivity({
     required Map<String, dynamic> activityData,
     VoidCallback? onTap,
+    VoidCallback? onHide,
   }) {
     // 解析狀態
     final statusString = activityData['displayStatus'] as String? ?? 'published';
@@ -307,6 +372,9 @@ class MyActivityCardBuilder {
                  activityData['time'] as String?;
     }
     
+    // 檢查是否應該啟用長按隱藏（只有已取消和已結束的活動）
+    final enableLongPress = status == ActivityStatus.cancelled || status == ActivityStatus.ended;
+    
     return MyActivityCard(
       title: activityData['name'] as String? ?? '未知活動',
       date: _formatDate(startDate),
@@ -318,6 +386,8 @@ class MyActivityCardBuilder {
       status: status,
       activityType: activityType,
       onTap: onTap,
+      enableLongPressToHide: enableLongPress,
+      onLongPress: enableLongPress ? onHide : null,
     );
   }
 

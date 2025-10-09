@@ -118,6 +118,7 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
           _allDataLoaded = true;
         });
         
+        
         if (activity != null) {
           debugPrint('活動詳情載入成功: ${activity['name']}');
         } else {
@@ -1141,6 +1142,34 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
                 // 取消報名/取消發布按鈕
                 if (_currentUser != null)
                   _buildTopBarActionButton(),
+                
+                // 臨時調試按鈕 - 手動觸發評分彈窗檢查
+                if (_currentUser != null && !_isMyActivity)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.star_outline,
+                          color: Colors.orange.shade700,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          debugPrint('🔧 手動觸發評分彈窗檢查');
+                          _debugActivityAndRegistrationStatus();
+                          _checkAndShowRatingPopup();
+                        },
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1565,6 +1594,11 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       final activityStatus = _activity!['status'] as String?;
       final endDateTime = _activity!['endDateTime'] as String?;
       
+      // 首先檢查是否為取消狀態
+      if (_registrationStatus == 'cancelled' || activityStatus == 'cancelled') {
+        return ActivityStatus.cancelled;
+      }
+      
       // 檢查活動是否已結束
       bool isActivityEnded = false;
       
@@ -1714,13 +1748,18 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
   Future<void> _handleCancelPublish() async {
     try {
-      await _activityService.updateActivityStatus(
+      // 顯示載入狀態
+      if (mounted) {
+        CustomSnackBarBuilder.info(context, '正在取消活動並通知報名者...');
+      }
+
+      // 使用新的取消活動方法，會同時更新活動和報名者狀態
+      await _activityService.cancelActivity(
         activityId: widget.activityId,
-        status: 'cancelled',
       );
 
       if (mounted) {
-        CustomSnackBarBuilder.success(context, '活動已取消發布');
+        CustomSnackBarBuilder.success(context, '活動已取消發布，所有報名者已收到通知');
         
         // 觸發我的活動頁面重整
         MyActivitiesPageController.refreshActivities();
@@ -1842,60 +1881,108 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
 
   /// 檢查並顯示評分彈窗
   Future<void> _checkAndShowRatingPopup() async {
-    if (_currentUser == null) return;
+    if (_currentUser == null) {
+      debugPrint('❌ 評分彈窗檢查：用戶未登入');
+      return;
+    }
     
     try {
+      debugPrint('=== 開始檢查評分彈窗顯示條件 ===');
+      debugPrint('當前用戶: ${_currentUser!.uid}');
+      debugPrint('活動ID: ${widget.activityId}');
+      debugPrint('是否為我的活動: $_isMyActivity');
+      debugPrint('是否已報名: $_isRegistered');
+      debugPrint('報名狀態: $_registrationStatus');
+      
+      // 如果是自己的活動，不需要評分
+      if (_isMyActivity) {
+        debugPrint('❌ 評分彈窗檢查：這是用戶自己發布的活動，不需要評分');
+        return;
+      }
+      
       // 延遲一點時間，確保頁面已經完全載入
+      debugPrint('⏳ 延遲1.5秒後檢查評分條件...');
       await Future.delayed(const Duration(milliseconds: 1500));
       
-      if (!mounted) return;
+      if (!mounted) {
+        debugPrint('❌ 評分彈窗檢查：頁面已卸載');
+        return;
+      }
       
+      debugPrint('🔍 調用 shouldShowRatingPopup 檢查...');
       final shouldShow = await _activityService.shouldShowRatingPopup(
         userId: _currentUser!.uid,
         activityId: widget.activityId,
       );
       
+      debugPrint('📋 shouldShowRatingPopup 結果: $shouldShow');
+      
       if (shouldShow && mounted) {
+        debugPrint('✅ 符合條件，準備顯示評分彈窗');
         _showRatingPopup();
+      } else {
+        debugPrint('❌ 不符合條件或頁面已卸載，不顯示評分彈窗');
+        debugPrint('   - shouldShow: $shouldShow');
+        debugPrint('   - mounted: $mounted');
       }
     } catch (e) {
-      debugPrint('檢查評分彈窗失敗: $e');
+      debugPrint('❌ 檢查評分彈窗失敗: $e');
+      debugPrint('錯誤堆疊: ${e.toString()}');
     }
   }
 
   /// 顯示評分彈窗
   void _showRatingPopup() {
-    if (_activity == null) return;
+    debugPrint('=== 準備顯示評分彈窗 ===');
+    
+    if (_activity == null) {
+      debugPrint('❌ 活動數據為空，無法顯示評分彈窗');
+      return;
+    }
+    
+    debugPrint('活動名稱: ${_activity!['name']}');
+    debugPrint('活動發布者ID: ${_activity!['userId']}');
     
     // 準備主辦方列表
     final organizers = <Map<String, dynamic>>[];
     
     // 添加活動發布者
     final user = _activity!['user'];
+    debugPrint('活動發布者資料: $user');
+    
     if (user != null) {
-      organizers.add({
+      final organizerData = {
         'userId': _activity!['userId'],
         'name': user['name'] ?? '主辦者',
         'avatar': user['avatar'],
-      });
+      };
+      organizers.add(organizerData);
+      debugPrint('添加主辦方: $organizerData');
     }
     
     // 如果沒有主辦方資訊，不顯示評分彈窗
     if (organizers.isEmpty) {
-      debugPrint('沒有主辦方資訊，無法顯示評分彈窗');
+      debugPrint('❌ 沒有主辦方資訊，無法顯示評分彈窗');
       return;
     }
     
-    ActivityRatingPopupBuilder.show(
-      context,
-      activityId: widget.activityId,
-      activityName: _activity!['name'] ?? '活動',
-      organizers: organizers,
-      onSubmit: _handleRatingSubmit,
-      onSkip: () {
-        debugPrint('用戶跳過評分');
-      },
-    );
+    debugPrint('✅ 準備顯示評分彈窗，主辦方數量: ${organizers.length}');
+    
+    try {
+      ActivityRatingPopupBuilder.show(
+        context,
+        activityId: widget.activityId,
+        activityName: _activity!['name'] ?? '活動',
+        organizers: organizers,
+        onSubmit: _handleRatingSubmit,
+        onSkip: () {
+          debugPrint('用戶跳過評分');
+        },
+      );
+      debugPrint('✅ 評分彈窗已成功調用顯示');
+    } catch (e) {
+      debugPrint('❌ 顯示評分彈窗失敗: $e');
+    }
   }
 
   /// 處理評分提交
@@ -2624,5 +2711,42 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
       }
     }
   }
+
+  /// 調試方法：檢查當前活動和報名狀態
+  void _debugActivityAndRegistrationStatus() async {
+    if (_currentUser == null || _activity == null) return;
+    
+    debugPrint('=== 調試：當前活動和報名狀態 ===');
+    debugPrint('活動ID: ${widget.activityId}');
+    debugPrint('當前用戶: ${_currentUser!.uid}');
+    debugPrint('活動狀態: ${_activity!['status']}');
+    debugPrint('活動結束時間: ${_activity!['endDateTime']}');
+    debugPrint('是否為我的活動: $_isMyActivity');
+    debugPrint('是否已報名: $_isRegistered');
+    debugPrint('報名狀態: $_registrationStatus');
+    
+    // 檢查實際的報名記錄
+    try {
+      final registrationData = await _activityService.getUserRegistrationStatus(
+        userId: _currentUser!.uid,
+        activityId: widget.activityId,
+      );
+      debugPrint('實際報名記錄: $registrationData');
+    } catch (e) {
+      debugPrint('獲取報名記錄失敗: $e');
+    }
+    
+    // 檢查是否已評分
+    try {
+      final hasRated = await _activityService.hasUserRatedActivity(
+        userId: _currentUser!.uid,
+        activityId: widget.activityId,
+      );
+      debugPrint('是否已評分: $hasRated');
+    } catch (e) {
+      debugPrint('檢查評分狀態失敗: $e');
+    }
+  }
+
 
 }

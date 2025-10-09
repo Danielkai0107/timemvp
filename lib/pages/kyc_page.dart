@@ -718,7 +718,7 @@ class KycPageState extends State<KycPage> with WidgetsBindingObserver {
                 ),
               ),
               child: const Text(
-                '前往登入',
+                '我知道了',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,

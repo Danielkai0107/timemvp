@@ -13,6 +13,7 @@ import '../components/design_system/custom_snackbar.dart';
 import '../services/activity_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
+import '../services/category_service.dart';
 import 'my_activities_page.dart';
 import 'home.dart';
 
@@ -41,6 +42,7 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
   final ActivityService _activityService = ActivityService();
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
+  final CategoryService _categoryService = CategoryService();
   
   // KYC 狀態
   bool _hasCompletedKyc = false;
@@ -55,6 +57,8 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
   // 步驟三：基本資料
   final TextEditingController _nameController = TextEditingController();
   String? _category;
+  List<Category> _availableCategories = []; // 可用的分類列表
+  bool _isLoadingCategories = false;
   DateTime? _startDate;
   TimeOfDay? _startTime;
   DateTime? _endDate;
@@ -96,6 +100,8 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     WidgetsBinding.instance.addObserver(this);
     _initializeWithActivityData();
     _checkUserKycStatus();
+    // 載入預設活動類型的分類
+    _loadCategories();
   }
 
   @override
@@ -171,13 +177,115 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     }
   }
 
+  /// 載入可用的分類
+  Future<void> _loadCategories() async {
+    if (_activityType == null) return;
+    
+    setState(() {
+      _isLoadingCategories = true;
+    });
+
+    try {
+      debugPrint('載入分類，活動類型: $_activityType');
+      
+      // 根據活動類型載入對應的分類（優先使用 Firebase）
+      final String categoryType = _activityType == 'individual' ? 'event' : 'task';
+      final categories = await _categoryService.getCategoriesByType(categoryType);
+      
+      debugPrint('從 Firebase 載入了 ${categories.length} 個分類');
+      
+      if (mounted) {
+        setState(() {
+          _availableCategories = categories;
+          _isLoadingCategories = false;
+          
+          // 設定當前分類（從活動數據中獲取）
+          _setCurrentCategoryFromData(categories);
+        });
+      }
+    } catch (e) {
+      debugPrint('從 Firebase 載入分類失敗: $e');
+      
+      // 只有在 Firebase 完全失敗時才使用備用數據
+      try {
+        final String categoryType = _activityType == 'individual' ? 'event' : 'task';
+        final fallbackCategories = await _categoryService.getCategoriesByTypeWithFallback(categoryType);
+        
+        debugPrint('使用備用分類數據，載入了 ${fallbackCategories.length} 個分類');
+        
+        if (mounted) {
+          setState(() {
+            _availableCategories = fallbackCategories;
+            _isLoadingCategories = false;
+            
+            // 設定當前分類（從活動數據中獲取）
+            _setCurrentCategoryFromData(fallbackCategories);
+          });
+          
+          // 顯示警告，告知用戶正在使用備用數據
+          CustomSnackBar.showError(
+            context,
+            message: '無法連接到服務器，正在使用離線分類數據',
+          );
+        }
+      } catch (fallbackError) {
+        debugPrint('備用分類數據也載入失敗: $fallbackError');
+        if (mounted) {
+          setState(() {
+            _isLoadingCategories = false;
+            _availableCategories = [];
+          });
+          
+          CustomSnackBar.showError(
+            context,
+            message: '無法載入分類數據，請檢查網路連接',
+          );
+        }
+      }
+    }
+  }
+
+  /// 設定當前分類（從活動數據中獲取）
+  void _setCurrentCategoryFromData(List<Category> categories) {
+    final data = widget.activityData;
+    final originalCategory = data['category'];
+    
+    if (originalCategory != null) {
+      // 嘗試根據 name 匹配分類
+      final matchedCategory = categories.firstWhere(
+        (cat) => cat.name == originalCategory,
+        orElse: () => categories.firstWhere(
+          (cat) => cat.id == originalCategory,
+          orElse: () => categories.firstWhere(
+            (cat) => cat.displayName == _getCategoryDisplayName(originalCategory),
+            orElse: () => Category(
+              id: '', 
+              name: '', 
+              displayName: '', 
+              type: '', 
+              sortOrder: 0, 
+              isActive: false
+            ),
+          ),
+        ),
+      );
+      
+      if (matchedCategory.name.isNotEmpty) {
+        _category = matchedCategory.name;
+        debugPrint('設定分類為: ${matchedCategory.displayName} (${matchedCategory.name})');
+      } else {
+        debugPrint('無法匹配分類: $originalCategory');
+        _category = null;
+      }
+    }
+  }
+
   /// 使用現有活動數據初始化表單
   void _initializeWithActivityData() {
     final data = widget.activityData;
     
     // 基本資料
     _nameController.text = data['name'] ?? '';
-    _category = _getCategoryDisplayName(data['category']);
     _addressController.text = data['address'] ?? '';
     _introductionController.text = data['introduction'] ?? '';
     
@@ -269,15 +377,10 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
     }
   }
 
-  /// 將分類顯示名稱轉換為資料庫鍵值
-  String _getCategoryKey(String displayName) {
-    switch (displayName) {
-      case '語言教學': return 'EventCategory_language_teaching';
-      case '技能體驗': return 'EventCategory_skill_experience';
-      case '活動支援': return 'EventCategory_event_support';
-      case '生活服務': return 'EventCategory_life_service';
-      default: return 'EventCategory_other';
-    }
+  /// 將分類名稱轉換為資料庫鍵值
+  String _getCategoryKey(String categoryName) {
+    // 直接返回分類名稱，因為現在使用的就是資料庫中的名稱
+    return categoryName;
   }
 
   void _nextStep() {
@@ -654,26 +757,30 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
             const SizedBox(height: 32),
             
             _buildOptionCard(
-              title: '單辦活動 / 開課程',
+              title: '舉辦活動',
               icon: Icons.person,
               isSelected: _activityType == 'individual',
               onTap: () {
                 setState(() {
                   _activityType = 'individual';
                 });
+                // 載入對應的分類
+                _loadCategories();
               },
             ),
             
             const SizedBox(height: 16),
             
             _buildOptionCard(
-              title: '找幫手 / 任務委託',
+              title: '任務委託',
               icon: Icons.people,
               isSelected: _activityType == 'group',
               onTap: () {
                 setState(() {
                   _activityType = 'group';
                 });
+                // 載入對應的分類
+                _loadCategories();
               },
             ),
             
@@ -770,24 +877,42 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
             
             // 2. 活動類型
             _buildSectionTitle('活動類型'),
-            DropdownBuilder.dialog<String>(
-              label: '類別',
-              dialogTitle: '選擇類別',
-              value: _category,
-              errorText: _categoryError,
-              onChanged: (value) {
-                setState(() {
-                  _category = value;
-                  _categoryError = null;
-                });
-              },
-              items: const [
-                DropdownItem(value: '語言教學', label: '語言教學'),
-                DropdownItem(value: '技能體驗', label: '技能體驗'),
-                DropdownItem(value: '活動支援', label: '活動支援'),
-                DropdownItem(value: '生活服務', label: '生活服務'),
-              ],
-            ),
+            _isLoadingCategories 
+                ? Container(
+                    height: 64,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary900,
+                        ),
+                      ),
+                    ),
+                  )
+                : DropdownBuilder.dialog<String>(
+                    label: '類別',
+                    dialogTitle: '選擇類別',
+                    value: _category,
+                    errorText: _categoryError,
+                    onChanged: (value) {
+                      setState(() {
+                        _category = value;
+                        _categoryError = null;
+                      });
+                    },
+                    items: _availableCategories.map((category) => 
+                      DropdownItem(
+                        value: category.name, 
+                        label: category.displayName,
+                      )
+                    ).toList(),
+                  ),
             
             _buildSectionDivider(),
             

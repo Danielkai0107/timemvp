@@ -33,7 +33,7 @@ class ProfilePageController {
   }
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
   
@@ -50,6 +50,9 @@ class _ProfilePageState extends State<ProfilePage> {
     // 註冊到全域控制器
     ProfilePageController._register(this);
     
+    // 註冊應用生命週期監聽器
+    WidgetsBinding.instance.addObserver(this);
+    
     _loadUserData();
   }
 
@@ -57,7 +60,22 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     // 從全域控制器註銷
     ProfilePageController._unregister();
+    
+    // 移除應用生命週期監聽器
+    WidgetsBinding.instance.removeObserver(this);
+    
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // 當應用從背景回到前景時，重新載入用戶資料
+    if (state == AppLifecycleState.resumed && mounted) {
+      debugPrint('應用回到前景，重新載入個人資料');
+      _refreshUserData();
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -138,7 +156,10 @@ class _ProfilePageState extends State<ProfilePage> {
   /// 從外部觸發的重整方法
   Future<void> _refreshFromExternal() async {
     debugPrint('=== 從外部觸發個人資料重整 ===');
-    await _refreshUserData();
+    // 確保在 UI 線程中執行
+    if (mounted) {
+      await _refreshUserData();
+    }
   }
 
   /// 導向編輯個人資料頁面
@@ -151,9 +172,18 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
 
+      // 無論是否有變更，都重新載入用戶資料以確保狀態同步
+      debugPrint('從編輯個人資料頁面返回，重新載入用戶資料');
+      await _refreshUserData();
+      
       if (result == true) {
-        // 編輯完成，重新載入用戶資料
-        await _refreshUserData();
+        // 如果有變更，顯示成功訊息
+        if (mounted) {
+          CustomSnackBar.showSuccess(
+            context,
+            message: '個人資料已更新',
+          );
+        }
       }
     } catch (e) {
       debugPrint('導向編輯個人資料頁面失敗: $e');

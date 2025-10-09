@@ -58,14 +58,32 @@ class _SearchFilterPopupState extends State<SearchFilterPopup> with WidgetsBindi
   }
 
   void _initializeValues() {
-    // 預設不帶入值，使用完全獨立的預設設定
-    _searchController = TextEditingController(); // 空的搜尋關鍵字
-    _selectedDate = null; // null，顯示 placeholder
-    _startTime = null; // null，顯示 placeholder
-    _endTime = null; // null，顯示 placeholder
-    _selectedCity = null; // null，顯示 placeholder
-    _selectedArea = null; // null，顯示 placeholder
-    _isOnlineActivity = false; // 預設為實體活動
+    // 從 SearchFilterService 讀取當前的篩選條件
+    final service = widget.searchFilterService;
+    
+    // 搜尋關鍵字
+    _searchController = TextEditingController(text: service.searchKeyword);
+    
+    // 日期
+    _selectedDate = service.selectedDate;
+    
+    // 時間 - 只有在非預設值時才顯示
+    final defaultStartTime = const TimeOfDay(hour: 0, minute: 0);
+    final defaultEndTime = const TimeOfDay(hour: 23, minute: 0);
+    _startTime = (service.startTime == defaultStartTime) ? null : service.startTime;
+    _endTime = (service.endTime == defaultEndTime) ? null : service.endTime;
+    
+    // 位置 - 只有在非「全部」模式時才顯示
+    if (service.currentCity.isNotEmpty && service.currentArea.isNotEmpty) {
+      _selectedCity = service.currentCity;
+      _selectedArea = service.currentArea;
+    } else {
+      _selectedCity = null;
+      _selectedArea = null;
+    }
+    
+    // 線上活動篩選
+    _isOnlineActivity = service.isOnlineOnly;
   }
 
   @override
@@ -585,10 +603,13 @@ class _SearchFilterPopupState extends State<SearchFilterPopup> with WidgetsBindi
     widget.searchFilterService.updateStartTime(startTimeToApply);
     widget.searchFilterService.updateEndTime(endTimeToApply);
     
-    // 位置：如果用戶沒選擇，使用預設值
-    final cityToApply = _selectedCity ?? '台北市';
-    final areaToApply = _selectedArea ?? '大安區';
-    widget.searchFilterService.updateLocation(cityToApply, areaToApply);
+    // 位置：只有在用戶選擇了具體位置時才設定，否則重置為「全部」
+    if (_selectedCity != null && _selectedArea != null) {
+      widget.searchFilterService.updateLocation(_selectedCity!, _selectedArea!);
+    } else {
+      // 重置為「全部」模式
+      widget.searchFilterService.resetToAllLocations();
+    }
     
     widget.searchFilterService.updateOnlineOnly(_isOnlineActivity);
     
