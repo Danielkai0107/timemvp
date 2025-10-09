@@ -304,116 +304,199 @@ class PhotoUploadState extends State<PhotoUpload> {
   Widget build(BuildContext context) {
     debugPrint('PhotoUpload build: ${_photos.length} 張相片');
     
-    return Column(
-      children: [
-        // 已選相片網格
-        if (_photos.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.0,
+    // 如果沒有照片，顯示"+ 新增照片"按鈕
+    if (_photos.isEmpty) {
+      return _buildInitialAddButton();
+    }
+    
+    return _build2x2PhotoGrid();
+  }
+
+  /// 建構初始新增照片按鈕（沒有照片時顯示）
+  Widget _buildInitialAddButton() {
+    return GestureDetector(
+      onTap: _showImageSourceDialog,
+      child: Container(
+        width: double.infinity,
+        height: 60,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(12),
+          color: AppColors.white,
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
+            SizedBox(width: 8),
+            Text(
+              '新增相片',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textPrimary,
               ),
-              itemCount: _photos.length,
-              itemBuilder: (context, index) {
-                return Stack(
-                  children: [
-                    // 相片
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.grey300,
-                          width: 1,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          File(_photos[index]),
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            debugPrint('PhotoUpload: 圖片載入錯誤 ${_photos[index]}: $error');
-                            return Container(
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.error_outline,
-                                  color: Colors.grey,
-                                  size: 32,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 建構2x2照片網格
+  Widget _build2x2PhotoGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 4 / 3, // 修改為4:3比例
+      ),
+      itemCount: 4, // 固定4個位置
+      itemBuilder: (context, index) {
+        if (index < _photos.length) {
+          // 顯示已上傳的照片
+          return _buildPhotoSlot(photoPath: _photos[index], index: index);
+        } else if (index == _photos.length && _photos.length < widget.maxPhotos) {
+          // 顯示新增按鈕（虛線方框 + icon）
+          return _buildAddPhotoSlot();
+        } else {
+          // 空白位置
+          return _buildEmptySlot();
+        }
+      },
+    );
+  }
+
+  /// 建構照片位置（已上傳的照片）
+  Widget _buildPhotoSlot({required String photoPath, required int index}) {
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.grey300,
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(photoPath),
+              width: double.infinity,
+              height: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                debugPrint('PhotoUpload: 圖片載入錯誤 $photoPath: $error');
+                return Container(
+                  color: Colors.grey.shade200,
+                  child: const Center(
+                    child: Icon(
+                      Icons.error_outline,
+                      color: Colors.grey,
+                      size: 32,
                     ),
-                    // 刪除按鈕
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () => _removePhoto(index),
-                        child: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            size: 16,
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 );
               },
             ),
           ),
-
-        // 新增相片按鈕
-        GestureDetector(
-          onTap: _showImageSourceDialog,
-          child: Container(
-            width: double.infinity,
-            height: 60,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(12),
-              color: AppColors.white,
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.add,
-                  color: AppColors.textPrimary,
-                  size: 20,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  '新增相片',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
+        ),
+        // 刪除按鈕
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: () => _removePhoto(index),
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 16,
+                color: AppColors.white,
+              ),
             ),
           ),
         ),
+        // 封面標籤（只在第一張照片顯示）
+        if (index == 0)
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Text(
+                '封面',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  /// 建構新增照片按鈕（虛線方框 + icon）
+  Widget _buildAddPhotoSlot() {
+    return GestureDetector(
+      onTap: _showImageSourceDialog,
+      child: CustomPaint(
+        painter: DashedBorderPainter(
+          color: AppColors.grey300,
+          strokeWidth: 2.0,
+          borderRadius: 12.0,
+          dashWidth: 12.0,
+          dashSpace: 12.0,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.transparent,
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.add,
+              size: 32,
+              color: AppColors.grey500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 建構空白位置
+  Widget _buildEmptySlot() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.transparent,
+      ),
     );
   }
 }
@@ -432,4 +515,63 @@ class PhotoUploadBuilder {
       photos: photos,
     );
   }
+}
+
+/// 虛線邊框繪製器
+class DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double borderRadius;
+  final double dashWidth;
+  final double dashSpace;
+
+  DashedBorderPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.borderRadius,
+    this.dashWidth = 5.0,
+    this.dashSpace = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+
+    final path = Path()..addRRect(rect);
+    
+    _drawDashedPath(canvas, path, paint);
+  }
+
+  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
+    final pathMetrics = path.computeMetrics();
+    
+    for (final metric in pathMetrics) {
+      double distance = 0.0;
+      bool draw = true;
+      
+      while (distance < metric.length) {
+        final length = draw ? dashWidth : dashSpace;
+        final endDistance = distance + length;
+        
+        if (draw) {
+          final extractPath = metric.extractPath(distance, endDistance);
+          canvas.drawPath(extractPath, paint);
+        }
+        
+        distance = endDistance;
+        draw = !draw;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

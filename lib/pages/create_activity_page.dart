@@ -11,6 +11,7 @@ import '../components/design_system/success_popup.dart';
 import '../components/design_system/date_picker.dart';
 import '../components/design_system/time_picker.dart';
 import '../components/design_system/custom_snackbar.dart';
+import '../components/design_system/photo_upload.dart';
 import '../services/activity_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
@@ -1508,76 +1509,17 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
             
             const SizedBox(height: 24),
             
-            // 顯示已上傳的相片
-            if (_uploadedPhotos.isNotEmpty) ...[
-              const Text(
-                '已上傳的相片',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemCount: _uploadedPhotos.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey.shade200,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(7), // 稍微小一點以適應外框
-                          child: Image.file(
-                            File(_uploadedPhotos[index]),
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _uploadedPhotos.removeAt(index);
-                              });
-                            },
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+            // 相片上傳組件 - 使用新的2x2佈局
+            PhotoUploadBuilder.personal(
+              onPhotosChanged: (photos) {
+                setState(() {
+                  _uploadedPhotos.clear();
+                  _uploadedPhotos.addAll(photos);
+                });
+              },
+              photos: _uploadedPhotos,
+              maxPhotos: 4,
+            ),
             
             const SizedBox(height: 40),
           ],
@@ -2333,7 +2275,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
 
   /// 建構確認頁面的封面圖片（滿版滑動）
   Widget _buildConfirmationCoverImage() {
-    int _currentImageIndex = 0; // 本地變量追蹤當前圖片索引
+    int currentImageIndex = 0; // 本地變量追蹤當前圖片索引
     
     return StatefulBuilder(
       builder: (context, setState) {
@@ -2358,7 +2300,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       itemCount: _uploadedPhotos.length,
                       onPageChanged: (index) {
                         setState(() {
-                          _currentImageIndex = index;
+                          currentImageIndex = index;
                         });
                       },
                       itemBuilder: (context, index) {
@@ -2389,7 +2331,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${_currentImageIndex + 1}/${_uploadedPhotos.length}',
+                      '${currentImageIndex + 1}/${_uploadedPhotos.length}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -2407,7 +2349,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
                   right: 0,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: _buildConfirmationPageIndicators(_uploadedPhotos.length, _currentImageIndex),
+                    children: _buildConfirmationPageIndicators(_uploadedPhotos.length, currentImageIndex),
                   ),
                 ),
             ],
@@ -2431,6 +2373,7 @@ class CreateActivityPageState extends State<CreateActivityPage> with WidgetsBind
       );
     });
   }
+
 
 }
 

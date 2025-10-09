@@ -1285,154 +1285,8 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
             
             const SizedBox(height: 24),
             
-            // 顯示現有網路圖片
-            if (_existingPhotoUrls.isNotEmpty) ...[
-              const Text(
-                '現有相片',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemCount: _existingPhotoUrls.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey.shade200,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: Image.network(
-                            _existingPhotoUrls[index],
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.error),
-                              );
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _existingPhotoUrls.removeAt(index);
-                              });
-                            },
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-            
-            // 顯示新上傳的相片
-            if (_uploadedPhotos.isNotEmpty) ...[
-              const Text(
-                '新上傳的相片',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemCount: _uploadedPhotos.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey.shade200,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: Image.file(
-                            File(_uploadedPhotos[index]),
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _uploadedPhotos.removeAt(index);
-                              });
-                            },
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+            // 顯示所有相片 - 使用新的2x2佈局
+            _buildEditPhotoGrid(),
             
             const SizedBox(height: 40),
           ],
@@ -2084,4 +1938,326 @@ class EditActivityPageState extends State<EditActivityPage> with WidgetsBindingO
       color: Colors.grey.shade200,
     );
   }
+
+  /// 建構編輯頁面的照片網格，使用2x2佈局
+  Widget _buildEditPhotoGrid() {
+    // 合併所有照片：現有的網路圖片 + 新上傳的本地圖片
+    final allPhotos = <Map<String, dynamic>>[];
+    
+    // 添加現有照片
+    for (int i = 0; i < _existingPhotoUrls.length; i++) {
+      allPhotos.add({
+        'type': 'network',
+        'path': _existingPhotoUrls[i],
+        'listType': 'existing',
+        'listIndex': i,
+        'isExisting': true,
+      });
+    }
+    
+    // 添加新上傳的照片
+    for (int i = 0; i < _uploadedPhotos.length; i++) {
+      allPhotos.add({
+        'type': 'file',
+        'path': _uploadedPhotos[i],
+        'listType': 'uploaded',
+        'listIndex': i,
+        'isExisting': false,
+      });
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '活動相片',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildEdit2x2PhotoGrid(allPhotos),
+      ],
+    );
+  }
+
+  /// 建構編輯頁面的2x2照片網格
+  Widget _buildEdit2x2PhotoGrid(List<Map<String, dynamic>> allPhotos) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 4 / 3, // 修改為4:3比例
+      ),
+      itemCount: 4, // 固定4個位置
+      itemBuilder: (context, index) {
+        if (index < allPhotos.length) {
+          // 顯示已有的照片
+          return _buildEditPhotoSlot(allPhotos[index]);
+        } else if (index == allPhotos.length && allPhotos.length < 4) {
+          // 顯示新增按鈕（虛線方框 + icon）
+          return _buildEditAddPhotoSlot();
+        } else {
+          // 空白位置
+          return _buildEditEmptySlot();
+        }
+      },
+    );
+  }
+
+  /// 建構編輯頁面的照片槽（2x2網格中的單個照片）
+  Widget _buildEditPhotoSlot(Map<String, dynamic> photoData) {
+    // 計算這是第幾張照片（在所有照片中的位置）
+    final allPhotos = <Map<String, dynamic>>[];
+    
+    // 重新構建所有照片列表來確定位置
+    for (int i = 0; i < _existingPhotoUrls.length; i++) {
+      allPhotos.add({
+        'type': 'network',
+        'path': _existingPhotoUrls[i],
+        'listType': 'existing',
+        'listIndex': i,
+        'isExisting': true,
+      });
+    }
+    
+    for (int i = 0; i < _uploadedPhotos.length; i++) {
+      allPhotos.add({
+        'type': 'file',
+        'path': _uploadedPhotos[i],
+        'listType': 'uploaded',
+        'listIndex': i,
+        'isExisting': false,
+      });
+    }
+    
+    // 找到當前照片在所有照片中的索引
+    final photoIndex = allPhotos.indexWhere((photo) => 
+      photo['path'] == photoData['path'] && 
+      photo['listType'] == photoData['listType']
+    );
+    
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.grey.shade300,
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: photoData['type'] == 'network'
+                ? Image.network(
+                    photoData['path'],
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: Icon(
+                            Icons.error_outline,
+                            color: Colors.grey,
+                            size: 32,
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : Image.file(
+                    File(photoData['path']),
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+          ),
+        ),
+        // 刪除按鈕
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                if (photoData['listType'] == 'existing') {
+                  _existingPhotoUrls.removeAt(photoData['listIndex']);
+                } else {
+                  _uploadedPhotos.removeAt(photoData['listIndex']);
+                }
+              });
+            },
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        // 封面標籤（只在第一張照片顯示）
+        if (photoIndex == 0)
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Text(
+                '封面',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        // 照片類型標籤（現有照片標籤，顯示在左下角）
+        if (photoData['isExisting'])
+          Positioned(
+            bottom: 8,
+            left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                '現有',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 建構編輯頁面的新增照片按鈕（虛線方框 + icon）
+  Widget _buildEditAddPhotoSlot() {
+    return GestureDetector(
+      onTap: _showImageSourceDialog,
+      child: CustomPaint(
+        painter: DashedBorderPainter(
+          color: Colors.grey.shade300,
+          strokeWidth: 2.0,
+          borderRadius: 12.0,
+          dashWidth: 8.0,
+          dashSpace: 4.0,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.transparent,
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.add,
+              size: 32,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 建構編輯頁面的空白位置
+  Widget _buildEditEmptySlot() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.transparent,
+      ),
+    );
+  }
+}
+
+/// 虛線邊框繪製器
+class DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double borderRadius;
+  final double dashWidth;
+  final double dashSpace;
+
+  DashedBorderPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.borderRadius,
+    this.dashWidth = 5.0,
+    this.dashSpace = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+
+    final path = Path()..addRRect(rect);
+    
+    _drawDashedPath(canvas, path, paint);
+  }
+
+  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
+    final pathMetrics = path.computeMetrics();
+    
+    for (final metric in pathMetrics) {
+      double distance = 0.0;
+      bool draw = true;
+      
+      while (distance < metric.length) {
+        final length = draw ? dashWidth : dashSpace;
+        final endDistance = distance + length;
+        
+        if (draw) {
+          final extractPath = metric.extractPath(distance, endDistance);
+          canvas.drawPath(extractPath, paint);
+        }
+        
+        distance = endDistance;
+        draw = !draw;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
