@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'app_colors.dart';
 import '../../services/activity_service.dart';
 import '../../services/user_service.dart';
@@ -362,88 +363,46 @@ class _UserProfilePopupState extends State<UserProfilePopup>
   Widget _buildVerificationBadge(String userStatus, String? kycStatus, String? accountType) {
     final isBusinessAccount = accountType == 'business';
     
+    String svgPath;
+    String text;
+    
     if (userStatus == 'approved' && kycStatus == 'approved') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.green.shade100,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isBusinessAccount ? Icons.business : Icons.verified,
-              size: 16,
-              color: Colors.green.shade600,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              isBusinessAccount ? '企業已認證' : '身份已認證',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.green.shade600,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
+      // KYC 已通過
+      svgPath = 'assets/images/kyc_success.svg';
+      text = isBusinessAccount ? '企業已認證' : '身份已認證';
     } else if (kycStatus == 'pending') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.schedule,
-              size: 16,
-              color: Colors.orange.shade600,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              isBusinessAccount ? '企業審核中' : '審核中',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.orange.shade600,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
+      // KYC 審核中
+      svgPath = 'assets/images/kyc_pending.svg';
+      text = isBusinessAccount ? '企業審核中' : '審核中';
+    } else if (kycStatus == 'rejected') {
+      // KYC 被拒絕
+      svgPath = 'assets/images/kyc_error.svg';
+      text = isBusinessAccount ? '企業未認證' : '未認證';
     } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.grey300,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isBusinessAccount ? Icons.business_outlined : Icons.help_outline,
-              size: 16,
-              color: AppColors.grey700,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              isBusinessAccount ? '企業未認證' : '未認證',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.grey700,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
+      // 沒有 KYC 資料或其他狀態
+      svgPath = 'assets/images/kyc_error.svg';
+      text = isBusinessAccount ? '企業未認證' : '未認證';
     }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(
+          svgPath,
+          width: 16,
+          height: 16,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildRatingStats(String rating, double participantRating, int participantRatingCount) {

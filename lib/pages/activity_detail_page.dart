@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../components/design_system/app_colors.dart';
 import '../components/design_system/custom_button.dart';
@@ -982,119 +983,46 @@ class _ActivityDetailPageState extends State<ActivityDetailPage> with TickerProv
     final accountType = user != null ? user['accountType'] : null;
     final isBusinessAccount = accountType == 'business';
     
+    String svgPath;
+    String text;
+    
     if (userStatus == 'approved' && kycStatus == 'approved') {
-      // KYC 已通過 - 顯示綠色認證標誌
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.green.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isBusinessAccount ? Icons.business : Icons.verified,
-              size: 12,
-              color: Colors.green.shade600,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              isBusinessAccount ? '企業已認證' : '身份已認證',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.green.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
+      // KYC 已通過
+      svgPath = 'assets/images/kyc_success.svg';
+      text = isBusinessAccount ? '企業已認證' : '身份已認證';
     } else if (kycStatus == 'pending') {
-      // KYC 審核中 - 顯示橙色待審核標誌
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.schedule,
-              size: 12,
-              color: Colors.orange.shade600,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              isBusinessAccount ? '企業審核中' : '審核中',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.orange.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
+      // KYC 審核中
+      svgPath = 'assets/images/kyc_pending.svg';
+      text = isBusinessAccount ? '企業審核中' : '審核中';
     } else if (kycStatus == 'rejected') {
-      // KYC 被拒絕 - 顯示紅色未認證標誌
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 12,
-              color: Colors.red.shade600,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              isBusinessAccount ? '企業未認證' : '未認證',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.red.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
+      // KYC 被拒絕
+      svgPath = 'assets/images/kyc_error.svg';
+      text = isBusinessAccount ? '企業未認證' : '未認證';
     } else {
-      // 沒有 KYC 資料或其他狀態 - 顯示灰色未認證標誌
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isBusinessAccount ? Icons.business_outlined : Icons.help_outline,
-              size: 12,
-              color: Colors.grey.shade600,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              isBusinessAccount ? '企業未認證' : '未認證',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
+      // 沒有 KYC 資料或其他狀態
+      svgPath = 'assets/images/kyc_error.svg';
+      text = isBusinessAccount ? '企業未認證' : '未認證';
     }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(
+          svgPath,
+          width: 12,
+          height: 12,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.grey,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildTopBar() {

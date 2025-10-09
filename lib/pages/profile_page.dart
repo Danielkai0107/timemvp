@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../components/design_system/app_colors.dart';
 import '../components/design_system/custom_snackbar.dart';
 import '../components/design_system/user_profile_popup.dart';
@@ -700,93 +701,67 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     // 企業帳號和個人帳號都根據 KYC 狀態顯示
     switch (_kycStatus) {
       case 'approved':
-        return _buildStatusBadge(
+        return _buildSvgStatusBadge(
           text: '身份已認證',
-          icon: Icons.verified,
-          backgroundColor: Colors.green.shade50,
-          textColor: Colors.green.shade700,
-          iconColor: Colors.green.shade600,
+          svgPath: 'assets/images/kyc_success.svg',
           onTap: null,
         );
       
       case 'pending':
-        return _buildStatusBadge(
+        return _buildSvgStatusBadge(
           text: '平台審核中',
-          icon: Icons.hourglass_empty,
-          backgroundColor: Colors.orange.shade50,
-          textColor: Colors.orange.shade700,
-          iconColor: Colors.orange.shade600,
+          svgPath: 'assets/images/kyc_pending.svg',
           onTap: null,
         );
       
       case 'rejected':
-        return _buildStatusBadge(
+        return _buildSvgStatusBadge(
           text: '審核未通過',
-          icon: Icons.error_outline,
-          backgroundColor: Colors.red.shade50,
-          textColor: Colors.red.shade700,
-          iconColor: Colors.red.shade600,
+          svgPath: 'assets/images/kyc_error.svg',
           onTap: _navigateToKyc,
         );
       
       default:
-        return _buildStatusBadge(
+        return _buildSvgStatusBadge(
           text: '尚未認證',
-          icon: Icons.warning_amber,
-          backgroundColor: Colors.red.shade50,
-          textColor: Colors.red.shade700,
-          iconColor: Colors.red.shade600,
+          svgPath: 'assets/images/kyc_error.svg',
           onTap: _accountType == 'business' ? null : _navigateToKyc, // 企業帳號不能進入個人 KYC 流程
         );
     }
   }
 
-  /// 構建狀態徽章的通用方法
-  Widget _buildStatusBadge({
+  /// 構建 SVG 狀態徽章的方法
+  Widget _buildSvgStatusBadge({
     required String text,
-    required IconData icon,
-    required Color backgroundColor,
-    required Color textColor,
-    required Color iconColor,
+    required String svgPath,
     VoidCallback? onTap,
   }) {
-    final badge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: textColor.withValues(alpha: 0.3),
-          width: 1,
+    final badge = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(
+          svgPath,
+          width: 16,
+          height: 16,
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 16,
-            color: iconColor,
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: Colors.grey,
           ),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
+        ),
+        if (onTap != null) ...[
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.arrow_forward_ios,
+            size: 12,
+            color: Colors.grey,
           ),
-          if (onTap != null) ...[
-            const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 12,
-              color: iconColor,
-            ),
-          ],
         ],
-      ),
+      ],
     );
 
     if (onTap != null) {
@@ -795,9 +770,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         child: badge,
       );
     }
-    
+
     return badge;
   }
+
 
   /// 導向 KYC 認證頁面
   Future<void> _navigateToKyc() async {
